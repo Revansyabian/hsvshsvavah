@@ -1,4 +1,4 @@
-import CryptoJS from 'crypto-js';
+ import CryptoJS from 'crypto-js';
 import admin from 'firebase-admin';
 
 const ADMIN_KEY = process.env.ADMIN_KEY;
@@ -150,6 +150,21 @@ async function cleanupOldAttempts() {
   }
 }
 
+function parseBody(body) {
+  if (!body) return null;
+  
+  if (body.data) {
+    try {
+      const decrypted = CryptoJS.AES.decrypt(body.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+      if (decrypted) return JSON.parse(decrypted);
+    } catch(e) {}
+  }
+  
+  if (body.path) return body;
+  
+  return null;
+}
+
 export default async function handler(req, res) {
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '*').split(',');
   const origin = req.headers.origin;
@@ -186,18 +201,16 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body;
-    if (!body || !body.data) return res.status(400).json({ error: 'No data' });
+    if (!body) return res.status(400).json({ error: 'No data' });
 
-    const decrypted = CryptoJS.AES.decrypt(body.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
-    if (!decrypted) return res.status(403).json({ error: 'Access denied' });
-    
-    const parsed = JSON.parse(decrypted);
+    const parsed = parseBody(body);
+    if (!parsed || !parsed.path) return res.status(400).json({ error: 'Invalid request' });
     
     if (!checkRequestDelay(ip, parsed.path)) {
       return res.status(429).json({ error: 'Request terlalu cepat. Harap tunggu.' });
     }
     
-    if (!parsed.path || typeof parsed.path !== 'string' || parsed.path.length > 200) {
+    if (typeof parsed.path !== 'string' || parsed.path.length > 200) {
       return res.status(400).json({ error: 'Invalid path' });
     }
     
@@ -275,11 +288,7 @@ export default async function handler(req, res) {
     if (parsed.path === 'login' && parsed.method === 'POST') {
       const ipBlocked = await isIPBlocked(ip);
       const fpBlocked = fp ? await isFPBlocked(fp) : false;
-      if (ipBlocked || fpBlocked) {
-        const result = { blocked: true };
-        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
-        return res.status(200).json({ encrypted: true, data: encrypted });
-      }
+      if (ipBlocked || fpBlocked) return res.status(200).json({ blocked: true });
       
       const snap = await db.ref('users').once('value');
       const users = snap.val();
@@ -293,10 +302,7 @@ export default async function handler(req, res) {
           });
         }
       }
-      
-      const result = { success: false };
-      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
-      return res.status(200).json({ encrypted: true, data: encrypted });
+      return res.status(200).json({ success: false });
     }
 
     if (parsed.method === 'GET') {
@@ -311,6 +317,9 @@ export default async function handler(req, res) {
               result[key] = JSON.parse(dec);
               result[key].id = key;
             } catch(e) {}
+          } else if (raw[key]) {
+            result[key] = raw[key];
+            result[key].id = key;
           }
         }
       }
@@ -342,6 +351,8 @@ export default async function handler(req, res) {
       if (existing && existing.data) {
         const dec = CryptoJS.AES.decrypt(existing.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
         existingData = JSON.parse(dec);
+      } else if (existing) {
+        existingData = existing;
       }
       const merged = Object.assign({}, existingData, parsed.data);
       const enc = CryptoJS.AES.encrypt(JSON.stringify(merged), ADMIN_KEY).toString();
