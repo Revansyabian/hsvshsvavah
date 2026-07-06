@@ -6,12 +6,17 @@ const ADMIN_KEY = process.env.ADMIN_KEY;
 if (!admin.apps.length) {
   const key = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
   admin.initializeApp({
-    credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: key }),
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: key
+    }),
     databaseURL: process.env.FIREBASE_DATABASE_URL
   });
 }
 
 const db = admin.database();
+
 const rateLimitMap = new Map();
 const RATE_LIMIT_MAX = 20;
 const RATE_LIMIT_WINDOW = 60000;
@@ -30,7 +35,8 @@ const requestTimestamps = new Map();
 const MIN_REQUEST_DELAY = 800;
 
 function checkRequestDelay(ip, path) {
-  if (path === 'login_success' || path === 'login_failed' || path === 'check_blocked') return true;
+  if (path === 'login_success' || path === 'login_failed' || path === 'check_blocked' || 
+      path === 'admin/login_success' || path === 'admin/login_failed') return true;
   const now = Date.now();
   const last = requestTimestamps.get(ip) || 0;
   if (now - last < MIN_REQUEST_DELAY) return false;
@@ -43,7 +49,8 @@ async function decryptData(raw) {
   if (raw.data) {
     try {
       const dec = CryptoJS.AES.decrypt(raw.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
-      return { ...raw, ...JSON.parse(dec) };
+      const decData = JSON.parse(dec);
+      return { ...raw, ...decData };
     } catch(e) { return raw; }
   }
   return raw;
@@ -52,10 +59,11 @@ async function decryptData(raw) {
 async function isIPBlocked(ip) {
   const snap = await db.ref('blocked_ips/' + ip.replace(/\./g, '_')).once('value');
   const raw = snap.val();
-  if (raw?.data) {
+  if (raw && raw.data) {
     try {
       const dec = CryptoJS.AES.decrypt(raw.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
-      if (JSON.parse(dec)?.blocked) return true;
+      const data = JSON.parse(dec);
+      if (data && data.blocked) return true;
     } catch(e) {}
   }
   return false;
@@ -64,22 +72,31 @@ async function isIPBlocked(ip) {
 async function isFPBlocked(fp) {
   const snap = await db.ref('blocked_fp/' + fp).once('value');
   const raw = snap.val();
-  if (raw?.data) {
+  if (raw && raw.data) {
     try {
       const dec = CryptoJS.AES.decrypt(raw.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
-      if (JSON.parse(dec)?.blocked) return true;
+      const data = JSON.parse(dec);
+      if (data && data.blocked) return true;
     } catch(e) {}
   }
   return false;
 }
 
 async function blockIP(ip) {
-  const enc = CryptoJS.AES.encrypt(JSON.stringify({ ip, blocked: true, blocked_at: new Date().toISOString() }), ADMIN_KEY).toString();
+  const enc = CryptoJS.AES.encrypt(JSON.stringify({
+    ip: ip,
+    blocked: true,
+    blocked_at: new Date().toISOString()
+  }), ADMIN_KEY).toString();
   await db.ref('blocked_ips/' + ip.replace(/\./g, '_')).set({ data: enc });
 }
 
 async function blockFP(fp) {
-  const enc = CryptoJS.AES.encrypt(JSON.stringify({ fingerprint: fp, blocked: true, blocked_at: new Date().toISOString() }), ADMIN_KEY).toString();
+  const enc = CryptoJS.AES.encrypt(JSON.stringify({
+    fingerprint: fp,
+    blocked: true,
+    blocked_at: new Date().toISOString()
+  }), ADMIN_KEY).toString();
   await db.ref('blocked_fp/' + fp).set({ data: enc });
 }
 
@@ -91,7 +108,7 @@ async function trackLoginAttempt(ip, fp) {
   const now = Date.now();
   let attempts = 0, lastAttempt = 0;
   
-  if (raw?.data) {
+  if (raw && raw.data) {
     try {
       const data = JSON.parse(CryptoJS.AES.decrypt(raw.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8));
       attempts = data.count || 0;
@@ -125,78 +142,235 @@ async function cleanupOldAttempts() {
     if (data[key]?.data) {
       try {
         const parsed = JSON.parse(CryptoJS.AES.decrypt(data[key].data, ADMIN_KEY).toString(CryptoJS.enc.Utf8));
-        if (now - (parsed.last_attempt || 0) > 86400000) await db.ref('login_attempts/' + key).remove();
+        if (now - (parsed.last_attempt || 0) > 86400000) {
+          await db.ref('login_attempts/' + key).remove();
+        }
       } catch(e) {}
     }
   }
+}
+
+function parseBody(body) {
+  if (!body) return null;
+  
+  if (body.data) {
+    try {
+      const decrypted = CryptoJS.AES.decrypt(body.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+      if (decrypted) return JSON.parse(decrypted);
+    } catch(e) {}
+  }
+  
+  if (body.path) return body;
+  
+  return null;
 }
 
 export default async function handler(req, res) {
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '*').split(',');
   const origin = req.headers.origin;
   
-  if (origin && allowedOrigins.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
-  else if (allowedOrigins.includes('*')) res.setHeader('Access-Control-Allow-Origin', '*');
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (allowedOrigins.includes('*')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
   
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, X-Fingerprint');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   
   const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== process.env.API_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   
   const ip = req.headers['x-forwarded-for'] || 'unknown';
   const fp = req.headers['x-fingerprint'] || '';
   
-  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Terlalu banyak request. Coba lagi nanti.' });
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Terlalu banyak request. Coba lagi nanti.' });
+  }
+  
+  if (Math.random() < 0.05) {
+    cleanupOldAttempts().catch(() => {});
+  }
 
   try {
-    const { path, method, data } = req.body;
-    
-    if (!checkRequestDelay(ip, path)) return res.status(429).json({ error: 'Request terlalu cepat. Harap tunggu.' });
-    if (!path || typeof path !== 'string' || path.length > 200) return res.status(400).json({ error: 'Invalid path' });
-    
-    const ref = db.ref(path);
+    const body = req.body;
+    if (!body) return res.status(400).json({ error: 'No data' });
 
-    if (path === 'check_blocked' && method === 'POST') {
+    const parsed = parseBody(body);
+    if (!parsed || !parsed.path) return res.status(400).json({ error: 'Invalid request' });
+    
+    if (!checkRequestDelay(ip, parsed.path)) {
+      return res.status(429).json({ error: 'Request terlalu cepat. Harap tunggu.' });
+    }
+    
+    if (typeof parsed.path !== 'string' || parsed.path.length > 200) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    
+    const ref = db.ref(parsed.path);
+
+    if (parsed.path === 'check_blocked' && parsed.method === 'POST') {
       const ipBlocked = await isIPBlocked(ip);
       const fpBlocked = fp ? await isFPBlocked(fp) : false;
       return res.status(200).json({ blocked: ipBlocked || fpBlocked });
     }
 
-    if (path === 'login' && method === 'POST') {
-      if (await isIPBlocked(ip) || (fp && await isFPBlocked(fp))) return res.status(200).json({ blocked: true });
+    if (parsed.path === 'access_key' && parsed.method === 'GET') {
+      const snap = await db.ref('access_key').once('value');
+      const raw = snap.val();
+      
+      if (raw && raw.data) {
+        const dec = CryptoJS.AES.decrypt(raw.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+        const result = JSON.parse(dec);
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+        return res.status(200).json({ encrypted: true, data: encrypted });
+      }
+      
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify({ key: '' }), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if (parsed.path === 'admin/auth' && parsed.method === 'GET') {
+      const ipBlocked = await isIPBlocked(ip);
+      const fpBlocked = fp ? await isFPBlocked(fp) : false;
+      
+      if (ipBlocked || fpBlocked) {
+        const result = { blocked: true };
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+        return res.status(200).json({ encrypted: true, data: encrypted });
+      }
+      
+      const snap = await ref.once('value');
+      const raw = snap.val();
+      
+      if (raw && raw.data) {
+        const dec = CryptoJS.AES.decrypt(raw.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+        const result = JSON.parse(dec);
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+        return res.status(200).json({ encrypted: true, data: encrypted });
+      }
+      
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify({}), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if ((parsed.path === 'login_failed' || parsed.path === 'admin/login_failed') && parsed.method === 'POST') {
+      const attempts = await trackLoginAttempt(ip, fp);
+      await new Promise(r => setTimeout(r, attempts * 500));
+      
+      if (attempts >= 5) {
+        await blockIP(ip);
+        if (fp) await blockFP(fp);
+        const result = { blocked: true };
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+        return res.status(200).json({ encrypted: true, data: encrypted });
+      }
+      
+      const result = { attempts: attempts, remaining: 5 - attempts };
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if ((parsed.path === 'login_success' || parsed.path === 'admin/login_success') && parsed.method === 'POST') {
+      await resetLoginAttempt(ip, fp);
+      const result = { success: true };
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if (parsed.path === 'login' && parsed.method === 'POST') {
+      const ipBlocked = await isIPBlocked(ip);
+      const fpBlocked = fp ? await isFPBlocked(fp) : false;
+      if (ipBlocked || fpBlocked) return res.status(200).json({ blocked: true });
+      
       const snap = await db.ref('users').once('value');
       const users = snap.val();
+      
       for (const key in users) {
         const decryptedUser = await decryptData({ ...users[key], id: key });
-        if (decryptedUser.username === data.username && decryptedUser.password === data.password) {
-          return res.status(200).json({ success: true, data: { id: key, username: decryptedUser.username, role: decryptedUser.role || 'User', full_name: decryptedUser.full_name || '', expiry_date: decryptedUser.expiry_date || '' } });
+        if (decryptedUser.username === parsed.data.username && decryptedUser.password === parsed.data.password) {
+          return res.status(200).json({
+            success: true,
+            data: { id: key, username: decryptedUser.username, role: decryptedUser.role || 'User', full_name: decryptedUser.full_name || '', expiry_date: decryptedUser.expiry_date || '' }
+          });
         }
       }
       return res.status(200).json({ success: false });
     }
 
-    if (path === 'login_failed' && method === 'POST') {
-      const attempts = await trackLoginAttempt(ip, fp);
-      await new Promise(r => setTimeout(r, attempts * 500));
-      if (attempts >= 5) { await blockIP(ip); if (fp) await blockFP(fp); return res.status(200).json({ blocked: true }); }
-      return res.status(200).json({ attempts });
+    if (parsed.method === 'GET') {
+      const snap = await ref.once('value');
+      const raw = snap.val();
+      const result = {};
+      if (raw) {
+        for (const key in raw) {
+          if (raw[key] && raw[key].data) {
+            try {
+              const dec = CryptoJS.AES.decrypt(raw[key].data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+              result[key] = JSON.parse(dec);
+              result[key].id = key;
+            } catch(e) {}
+          } else if (raw[key]) {
+            result[key] = raw[key];
+            result[key].id = key;
+          }
+        }
+      }
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
     }
 
-    if (path === 'login_success' && method === 'POST') { await resetLoginAttempt(ip, fp); return res.status(200).json({ success: true }); }
-    if (method === 'GET') { const snap = await ref.once('value'); const raw = snap.val(); const result = {}; if (raw) for (const key in raw) { const d = await decryptData({ ...raw[key], id: key }); result[key] = d; result[key].id = key; } return res.status(200).json(result); }
-    if (method === 'POST') { const r = ref.push(); await r.set(data); return res.status(200).json({ success: true, id: r.key }); }
-    if (method === 'PUT') { await ref.set(data); return res.status(200).json({ success: true }); }
-    if (method === 'PATCH') { await ref.update(data); return res.status(200).json({ success: true }); }
-    if (method === 'DELETE') { await ref.remove(); return res.status(200).json({ success: true }); }
+    if (parsed.method === 'POST') {
+      const enc = CryptoJS.AES.encrypt(JSON.stringify(parsed.data), ADMIN_KEY).toString();
+      const newRef = ref.push();
+      await newRef.set({ data: enc });
+      const result = { success: true, id: newRef.key };
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if (parsed.method === 'PUT') {
+      const enc = CryptoJS.AES.encrypt(JSON.stringify(parsed.data), ADMIN_KEY).toString();
+      await ref.set({ data: enc });
+      const result = { success: true };
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if (parsed.method === 'PATCH') {
+      const snap = await ref.once('value');
+      const existing = snap.val();
+      let existingData = {};
+      if (existing && existing.data) {
+        const dec = CryptoJS.AES.decrypt(existing.data, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+        existingData = JSON.parse(dec);
+      } else if (existing) {
+        existingData = existing;
+      }
+      const merged = Object.assign({}, existingData, parsed.data);
+      const enc = CryptoJS.AES.encrypt(JSON.stringify(merged), ADMIN_KEY).toString();
+      await ref.update({ data: enc });
+      const result = { success: true };
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
+
+    if (parsed.method === 'DELETE') {
+      await ref.remove();
+      const result = { success: true };
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(result), ADMIN_KEY).toString();
+      return res.status(200).json({ encrypted: true, data: encrypted });
+    }
 
     return res.status(400).json({ error: 'Invalid method' });
+
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
