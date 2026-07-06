@@ -1,4 +1,4 @@
- import CryptoJS from 'crypto-js';
+import CryptoJS from 'crypto-js';
 import admin from 'firebase-admin';
 
 const ADMIN_KEY = process.env.ADMIN_KEY;
