@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bussid Top Up</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FFFFFF;
+            min-height: 100vh;
+            color: #1A1A2E;
+        }
+
+        .header {
+            background: #00BFFF;
+            padding: 40px 24px 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #FFFFFF;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .container {
+            max-width: 480px;
+            margin: -30px auto 0;
+            padding: 0 16px 20px;
+        }
+
+        .menu-card {
+            background: #FFFFFF;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .menu-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 16px 18px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1A1A2E;
+            background: #F8FAFC;
+            margin-bottom: 8px;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+
+        .menu-btn:last-child {
+            margin-bottom: 0;
+        }
+
+        .menu-btn:hover {
+            background: #E0F2FE;
+        }
+
+        .menu-btn:active {
+            background: #BAE6FD;
+        }
+
+        .menu-btn .left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .menu-btn .left .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .dot.blue { background: #00BFFF; }
+        .dot.green { background: #10B981; }
+        .dot.orange { background: #F59E0B; }
+        .dot.purple { background: #8B5CF6; }
+        .dot.red { background: #EF4444; }
+        .dot.gray { background: #64748B; }
+
+        .menu-btn .arrow {
+            color: #94A3B8;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Bussid Top Up</h1>
+        <p>Pilih menu untuk melanjutkan</p>
+    </div>
+
+    <div class="container">
+        <div class="menu-card">
+            <button class="menu-btn" onclick="sendToBot('login')">
+                <span class="left">
+                    <span class="dot blue"></span>
+                    Login
+                </span>
+                <span class="arrow">›</span>
+            </button>
+
+            <button class="menu-btn" onclick="sendToBot('topup')">
+                <span class="left">
+                    <span class="dot green"></span>
+                    Top Up
+                </span>
+                <span class="arrow">›</span>
+            </button>
+
+            <button class="menu-btn" onclick="sendToBot('kuras')">
+                <span class="left">
+                    <span class="dot orange"></span>
+                    Kuras
+                </span>
+                <span class="arrow">›</span>
+            </button>
+
+            <button class="menu-btn" onclick="sendToBot('gantinama')">
+                <span class="left">
+                    <span class="dot purple"></span>
+                    Ganti Nama
+                </span>
+                <span class="arrow">›</span>
+            </button>
+
+            <button class="menu-btn" onclick="sendToBot('admin')">
+                <span class="left">
+                    <span class="dot red"></span>
+                    Admin Panel
+                </span>
+                <span class="arrow">›</span>
+            </button>
+
+            <button class="menu-btn" onclick="sendToBot('bantuan')">
+                <span class="left">
+                    <span class="dot gray"></span>
+                    Bantuan
+                </span>
+                <span class="arrow">›</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        tg.setHeaderColor('#00BFFF');
+        tg.setBackgroundColor('#FFFFFF');
+
+        function sendToBot(action) {
+            tg.sendData(action);
+            tg.close();
+        }
+    </script>
+</body>
+</html>
