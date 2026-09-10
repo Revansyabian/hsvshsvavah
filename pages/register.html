@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; font-src 'self' data: https://cdnjs.cloudflare.com; connect-src 'self' https:; frame-src https://www.google.com/recaptcha/; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>Daftar - Top Up</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="theme-color" content="#0ea5e9">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .register-container { width: 100%; max-width: 460px; }
+        .register-card { background: #fff; border-radius: 24px; padding: 40px 35px 30px; box-shadow: 0 25px 60px rgba(0,0,0,0.08); animation: fadeIn 0.4s ease; margin: auto; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .register-header { text-align: center; margin-bottom: 28px; }
+        .register-logo { width: 90px; height: 90px; border-radius: 20px; margin: 0 auto 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f0f9ff; border: 2px solid #e0f2fe; }
+        .register-logo img { width: 100%; height: 100%; object-fit: cover; }
+        .register-logo .logo-placeholder { font-size: 40px; color: #0ea5e9; }
+        .register-header h1 { color: #0c4a6e; font-size: 24px; font-weight: 700; }
+        .register-header p { color: #64748b; font-size: 14px; margin-top: 6px; }
+        .register-footer { margin-top: 20px; text-align: center; color: #94a3b8; font-size: 13px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+        .register-footer a { color: #0ea5e9; text-decoration: none; font-weight: 600; }
+        .register-footer a:hover { text-decoration: underline; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: #475569; font-size: 13px; font-weight: 600; }
+        .form-group label i { color: #0ea5e9; }
+        .form-input { width: 100%; padding: 12px 16px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; color: #1e293b; font-size: 14px; transition: all 0.2s ease; }
+        .form-input:focus { outline: none; border-color: #0ea5e9; background: #fff; box-shadow: 0 0 0 4px rgba(14,165,233,0.1); }
+        .form-input::placeholder { color: #94a3b8; }
+        .btn { padding: 13px 24px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; width: 100%; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: #0ea5e9; }
+        .btn-primary:hover { background: #0284c7; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .recaptcha-wrapper { margin-bottom: 16px; display: flex; justify-content: center; }
+        .verification-box { display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #E6F9FF; border-radius: 10px; margin-bottom: 16px; border: 1px solid #bae6fd; }
+        .verification-box input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; accent-color: #0ea5e9; cursor: pointer; flex-shrink: 0; }
+        .verification-box label { font-size: 12px; color: #475569; cursor: pointer; line-height: 1.5; }
+        .error-message { background: #fef2f2; color: #ef4444; padding: 10px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 16px; display: none; }
+        .error-message.show { display: block; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #0ea5e9; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .password-strength { height: 4px; border-radius: 2px; margin-top: 4px; background: #e2e8f0; overflow: hidden; }
+        .password-strength-bar { height: 100%; width: 0%; transition: all 0.3s ease; border-radius: 2px; }
+        .strength-weak { background: #ef4444; width: 33%; }
+        .strength-medium { background: #f59e0b; width: 66%; }
+        .strength-strong { background: #10b981; width: 100%; }
+        .paket-dropdown { position: relative; }
+        .paket-select { width: 100%; padding: 12px 16px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; color: #1e293b; font-size: 14px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between; }
+        .paket-select:hover { border-color: #0ea5e9; }
+        .paket-select.active { border-color: #0ea5e9; box-shadow: 0 0 0 4px rgba(14,165,233,0.1); }
+        .paket-select .placeholder { color: #94a3b8; }
+        .paket-select .selected-text { color: #1e293b; font-weight: 600; }
+        .paket-select i { color: #0ea5e9; transition: transform 0.2s ease; }
+        .paket-select.active i { transform: rotate(180deg); }
+        .paket-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 2px solid #e2e8f0; border-radius: 10px; max-height: 250px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .paket-list.show { display: block; }
+        .paket-option { padding: 12px 16px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+        .paket-option:last-child { border-bottom: none; }
+        .paket-option:hover { background: #f0f9ff; }
+        .paket-option.selected { background: #E6F9FF; }
+        .paket-option .paket-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+        .paket-option .paket-price { font-size: 14px; font-weight: 700; color: #0ea5e9; }
+        .honeypot-field { position: absolute; left: -9999px; opacity: 0; height: 0; width: 0; overflow: hidden; }
+        @media(max-width:480px) { .register-card { padding: 28px 20px; } .register-header h1 { font-size: 20px; } }
+    </style>
+</head>
+<body>
+
+    <div class="register-container">
+        <div class="register-card">
+            
+            <div class="register-header">
+                <div class="register-logo">
+                    <img src="/img.png" alt="Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div class="logo-placeholder" style="display:none;"><i class="fas fa-cube"></i></div>
+                </div>
+                <h1>Daftar Akun</h1>
+                <p>Pilih paket dan buat akun baru</p>
+            </div>
+
+            <div class="error-message" id="errorMessage">
+                <i class="fas fa-exclamation-circle"></i> <span id="errorText"></span>
+            </div>
+
+            <div class="honeypot-field" aria-hidden="true">
+                <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label for="username"><i class="fas fa-user"></i> Username</label>
+                <input type="text" id="username" placeholder="Huruf dan angka saja (3-20)" class="form-input" maxlength="20" oninput="validateUsernameInput()">
+            </div>
+
+            <div class="form-group">
+                <label for="password"><i class="fas fa-lock"></i> Password</label>
+                <input type="password" id="password" placeholder="Minimal 6 karakter" class="form-input" maxlength="20" oninput="updatePasswordStrength()">
+                <div class="password-strength"><div class="password-strength-bar" id="passwordStrengthBar"></div></div>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword"><i class="fas fa-lock"></i> Konfirmasi Password</label>
+                <input type="password" id="confirmPassword" placeholder="Ulangi password" class="form-input" maxlength="20" oninput="updateConfirmPasswordStrength()">
+                <div class="password-strength"><div class="password-strength-bar" id="confirmPasswordStrengthBar"></div></div>
+            </div>
+
+            <div class="form-group">
+                <label for="phone"><i class="fas fa-phone"></i> Nomor Telepon</label>
+                <input type="tel" id="phone" placeholder="081234567890" class="form-input" maxlength="15" oninput="validatePhoneInput()">
+            </div>
+
+            <div class="form-group">
+                <label for="email"><i class="fas fa-envelope"></i> Email</label>
+                <input type="email" id="email" placeholder="nama@email.com" class="form-input" maxlength="50" oninput="validateEmailInput()">
+            </div>
+
+            <div class="form-group">
+                <label><i class="fas fa-box"></i> Pilih Paket</label>
+                <div class="paket-dropdown" id="paketDropdown">
+                    <div class="paket-select" id="paketSelect" onclick="togglePaketList()">
+                        <span class="placeholder" id="paketPlaceholder">Klik untuk pilih paket...</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="paket-list" id="paketList">
+                        <div class="paket-option" data-paket="1 Minggu" data-harga="15000" onclick="selectPaketOption(this)">
+                            <span class="paket-name">1 Minggu</span>
+                            <span class="paket-price">Rp 15.000</span>
+                        </div>
+                        <div class="paket-option" data-paket="2 Minggu" data-harga="25000" onclick="selectPaketOption(this)">
+                            <span class="paket-name">2 Minggu</span>
+                            <span class="paket-price">Rp 25.000</span>
+                        </div>
+                        <div class="paket-option" data-paket="1 Bulan" data-harga="40000" onclick="selectPaketOption(this)">
+                            <span class="paket-name">1 Bulan</span>
+                            <span class="paket-price">Rp 40.000</span>
+                        </div>
+                        <div class="paket-option" data-paket="2 Bulan" data-harga="50000" onclick="selectPaketOption(this)">
+                            <span class="paket-name">2 Bulan</span>
+                            <span class="paket-price">Rp 50.000</span>
+                        </div>
+                        <div class="paket-option" data-paket="3 Bulan" data-harga="55000" onclick="selectPaketOption(this)">
+                            <span class="paket-name">3 Bulan</span>
+                            <span class="paket-price">Rp 55.000</span>
+                        </div>
+                        <div class="paket-option" data-paket="Permanen" data-harga="100000" onclick="selectPaketOption(this)">
+                            <span class="paket-name">Permanen</span>
+                            <span class="paket-price">Rp 100.000</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="verification-box">
+                <input type="checkbox" id="verificationCheck" onchange="toggleSubmitButton()">
+                <label for="verificationCheck">Saya menyetujui bahwa akun saya perlu <b>diaktivasi oleh admin</b> terlebih dahulu sebelum bisa digunakan.</label>
+            </div>
+
+            <div class="recaptcha-wrapper">
+                <div class="g-recaptcha" data-sitekey="6LfYOH4tAAAAAO48ez84cjF25XOYz3cN0OOjZ9pc"></div>
+            </div>
+
+            <button class="btn btn-primary" id="btnRegister" onclick="register()" disabled>
+                <i class="fas fa-user-plus"></i> DAFTAR
+            </button>
+
+            <div class="register-footer">
+                <p>Sudah punya akun? <a href="/">Login di sini</a></p>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="/pages/register.js"></script>
+</body>
+</html>
