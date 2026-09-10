@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; font-src 'self' data: https://cdnjs.cloudflare.com; connect-src 'self' https:; frame-src https://www.google.com/recaptcha/; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>Login - Top Up</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="theme-color" content="#0ea5e9">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-container { width: 100%; max-width: 420px; }
+        .login-card { background: #fff; border-radius: 24px; padding: 45px 35px 35px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.08); animation: fadeIn 0.4s ease; margin: auto; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .login-header { text-align: center; margin-bottom: 32px; }
+        .login-logo {
+            width: 100px;
+            height: 100px;
+            border-radius: 22px;
+            margin: 0 auto 16px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f0f9ff;
+            border: 2px solid #e0f2fe;
+            box-shadow: 0 8px 20px rgba(14, 165, 233, 0.15);
+        }
+        .login-logo img { width: 100%; height: 100%; object-fit: cover; }
+        .login-logo .logo-placeholder { font-size: 48px; color: #0ea5e9; }
+        .login-header h1 { color: #0c4a6e; font-size: 28px; font-weight: 700; }
+        .login-header p { color: #64748b; font-size: 14px; margin-top: 6px; }
+        .login-footer { margin-top: 28px; text-align: center; color: #94a3b8; font-size: 13px; padding-top: 18px; border-top: 1px solid #f1f5f9; }
+        .login-footer a { color: #0ea5e9; text-decoration: none; font-weight: 600; }
+        .login-footer a:hover { text-decoration: underline; }
+        .login-links { display: flex; justify-content: space-between; margin-top: 16px; font-size: 13px; }
+        .login-links a { color: #0ea5e9; text-decoration: none; font-weight: 600; }
+        .login-links a:hover { text-decoration: underline; }
+        .form-group { margin-bottom: 22px; }
+        .form-group label { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: #475569; font-size: 13px; font-weight: 600; }
+        .form-group label i { color: #0ea5e9; }
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .form-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            color: #1e293b;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            padding-right: 48px;
+        }
+        .form-input:focus { outline: none; border-color: #0ea5e9; background: #fff; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); }
+        .form-input::placeholder { color: #94a3b8; }
+        #togglePassword {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 18px;
+            transition: 0.2s;
+            z-index: 2;
+        }
+        #togglePassword:hover { color: #0ea5e9; }
+        .btn { padding: 14px 24px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px; color: #fff; letter-spacing: 0.3px; width: 100%; }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: #0ea5e9; }
+        .btn-primary:hover { background: #0284c7; }
+        .recaptcha-wrapper { margin-bottom: 20px; display: flex; justify-content: center; }
+        .password-counter { text-align: right; font-size: 11px; color: #94a3b8; margin-top: 4px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid #0ea5e9; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @media(max-width:480px) { .login-card { padding: 30px 22px; } .login-header h1 { font-size: 22px; } .login-logo { width: 80px; height: 80px; border-radius: 18px; } }
+    </style>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+</head>
+<body>
+
+    <div id="loadingOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:center">
+        <div style="background:#1a1a2e;padding:30px 40px;border-radius:16px;text-align:center;color:#fff">
+            <div class="spinner"></div>
+            <p id="loadingMessage" style="margin-top:15px;font-size:14px">Memproses...</p>
+        </div>
+    </div>
+
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <img src="/img.png" alt="Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div class="logo-placeholder" style="display:none;">
+                        <i class="fas fa-cube"></i>
+                    </div>
+                </div>
+                <h1>TOP UP</h1>
+                <p>Silakan login untuk melanjutkan</p>
+            </div>
+            <div class="form-group">
+                <label for="username"><i class="fas fa-user"></i> Username</label>
+                <input type="text" id="username" placeholder="Masukkan username" class="form-input" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="password"><i class="fas fa-lock"></i> Password</label>
+                <div class="password-wrapper">
+                    <input type="password" id="password" placeholder="Masukkan password" class="form-input" maxlength="20" autocomplete="current-password">
+                    <i id="togglePassword" class="fas fa-eye-slash" aria-label="Tampilkan password"></i>
+                </div>
+                <div class="password-counter"><span id="passwordCharCount">0/20</span></div>
+            </div>
+            <div class="recaptcha-wrapper">
+                <div class="g-recaptcha" data-sitekey="6LfYOH4tAAAAAO48ez84cjF25XOYz3cN0OOjZ9pc"></div>
+            </div>
+            <button class="btn btn-primary" id="btnLogin" onclick="login()">
+                <i class="fas fa-sign-in-alt"></i> LOGIN
+            </button>
+            <div class="login-links">
+                <a href="/pages/reset-password"><i class="fas fa-key"></i> Lupa Password?</a>
+                <a href="/pages/register"><i class="fas fa-user-plus"></i> Register</a>
+            </div>
+            <div class="login-footer">
+                <p><i class="fas fa-info-circle"></i>silakan register jika belum memiliki akun</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="pages/login.js"></script>
+</body>
+</html>
