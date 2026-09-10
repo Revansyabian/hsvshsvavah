@@ -1,6 +1,15 @@
 {
   "name": "topup-bussid",
   "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -10,10 +19,5 @@
     "firebase-admin": "^12.0.0",
     "helmet": "^8.1.0",
     "http-proxy-middleware": "^3.0.0"
-  },
-  "type": "module",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
   }
 }
