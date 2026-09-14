@@ -446,15 +446,17 @@ async function handler(req, res) {
     
     const ref = db.ref(path);
 
-    if (path === 'check_blocked' && method === 'POST') {
-      const captchaToken = data?.captchaToken || '';
-      const captchaValid = await verifyRecaptchaV3(captchaToken, 'check_blocked');
-      if (!captchaValid) {
-        return res.status(200).json(encryptResponse({ blocked: true, blockType: 'captcha', message: 'Verifikasi reCAPTCHA gagal.' }));
-      }
+    if (path === 'check_blocked' && (method === 'POST' || method === 'GET')) {
+      // Status block adalah keputusan server berdasarkan Firebase.
+      // Jangan gunakan reCAPTCHA/localStorage sebagai sumber status block.
       const ipBlocked = await isIPBlocked(ip);
       const fpBlocked = fp ? await isFPBlocked(fp) : false;
-      return res.status(200).json(encryptResponse({ blocked: ipBlocked || fpBlocked, blockType: ipBlocked ? 'ip' : 'device' }));
+      return res.status(200).json(encryptResponse({
+        blocked: ipBlocked || fpBlocked,
+        blockType: ipBlocked ? 'ip' : (fpBlocked ? 'device' : null),
+        ipBlocked,
+        fpBlocked
+      }));
     }
 
     if (path === 'maintenance_status') {
@@ -909,14 +911,12 @@ function decryptData(raw) {
     if (!raw) return raw;
     try {
         if (typeof raw === 'string') {
-            const dec = JSON.stringify(decryptAtRest(raw, ADMIN_KEY) || {});
-            if (!dec) return raw;
-            return JSON.parse(dec);
+            const dec = decryptAtRest(raw, ADMIN_KEY);
+            return dec === null ? raw : dec;
         }
         if (raw.data) {
-            const dec = JSON.stringify(decryptAtRest(raw.data, ADMIN_KEY) || {});
-            if (!dec) return raw;
-            return JSON.parse(dec);
+            const dec = decryptAtRest(raw.data, ADMIN_KEY);
+            return dec === null ? raw : dec;
         }
         return raw;
     } catch (e) {
@@ -1024,8 +1024,8 @@ async function isIPBlocked(ip) {
         const key = escapeFirebaseKey(ip);
         const snap = await db.ref('blocked_ips/' + key).once('value');
         const raw = snap.val();
-        if (raw && raw.data) {
-            const data = decryptData(raw.data);
+        if (raw) {
+            const data = decryptData(raw);
             if (data && data.blocked === true) return true;
         }
         return false;
@@ -1041,8 +1041,8 @@ async function isFPBlocked(fp) {
         const key = escapeFirebaseKey(fp);
         const snap = await db.ref('blocked_fp/' + key).once('value');
         const raw = snap.val();
-        if (raw && raw.data) {
-            const data = decryptData(raw.data);
+        if (raw) {
+            const data = decryptData(raw);
             if (data && data.blocked === true) return true;
         }
         return false;
@@ -1056,8 +1056,8 @@ async function checkMaintenance() {
     try {
         const snap = await db.ref('maintenance_status').once('value');
         const raw = snap.val();
-        if (raw && raw.data) {
-            const data = decryptData(raw.data);
+        if (raw) {
+            const data = decryptData(raw);
             if (data && data.maintenance === true) {
                 return {
                     maintenance: true,

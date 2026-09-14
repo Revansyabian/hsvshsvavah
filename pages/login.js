@@ -76,13 +76,6 @@ async function checkIfBlocked() {
     if (blockedChecked) return isBlocked;
     if (!fingerprint) fingerprint = await getFingerprint();
     
-    var globalBlock = getGlobalBlockData();
-    if (globalBlock.blockedUntil && Date.now() < globalBlock.blockedUntil) {
-        isBlocked = true;
-        blockedChecked = true;
-        return true;
-    }
-    
     try {
         var payload = {
             path: 'check_blocked',
@@ -359,12 +352,6 @@ async function login() {
         var password = document.getElementById('password').value.trim();
         if (!username || !password) {
             Swal.fire({ icon: "warning", title: "Oops...", text: "Harap isi username dan password!", confirmButtonColor: "#0ea5e9" });
-            loginInProgress = false;
-            return;
-        }
-        var blockData = getBlockData(username);
-        if (blockData.blockedUntil && Date.now() < blockData.blockedUntil) {
-            Swal.fire({ icon: "error", title: "Akses Ditolak", text: "🔒 Terlalu banyak percobaan!", confirmButtonColor: "#ef4444" });
             loginInProgress = false;
             return;
         }
