@@ -22,7 +22,7 @@ let privateKey;
 
 if (!TRANSPORT_PRIVATE_KEY) {
   throw new Error(
-    'TRANSPORT_PRIVATE_KEY wajib di-set di environment Vercel'
+    'TRANSPORT_PRIVATE_KEY belum diset di environment'
   );
 }
 
@@ -31,17 +31,17 @@ try {
     TRANSPORT_PRIVATE_KEY.replace(/\\n/g, '\n')
   );
 } catch (error) {
-  console.error('[TRANSPORT KEY]', error?.message || error);
+  console.error(
+    '[ADMIN TRANSPORT KEY]',
+    error?.message || error
+  );
 
   throw new Error(
     'TRANSPORT_PRIVATE_KEY tidak valid'
   );
 }
 
-const publicKey = crypto.createPublicKey(
-  privateKey
-);
-
+const publicKey = crypto.createPublicKey(privateKey);
 const publicJwk = publicKey.export({
   format: 'jwk'
 });
