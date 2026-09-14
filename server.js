@@ -510,6 +510,29 @@ server.use(
 );
 
 /* =========================================
+   ADMIN FRONTEND JS
+========================================= */
+
+/*
+ * main.js adalah JS frontend admin.
+ * Route eksplisit supaya /main.js
+ * tidak jatuh ke 404 Vercel/Express.
+ */
+
+server.get(
+  '/main.js',
+  (_req, res) => {
+
+    return res.sendFile(
+      path.join(
+        __dirname,
+        'main.js'
+      )
+    );
+  }
+);
+
+/* =========================================
    404
 ========================================= */
 
