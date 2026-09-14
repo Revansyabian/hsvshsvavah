@@ -1,3 +1,8 @@
+import crypto from 'node:crypto';
+import admin from 'firebase-admin';
+import bcrypt from 'bcryptjs';
+
+import CryptoJS from 'crypto-js';
 
 function addCookie(res, value) {
   const current = res.getHeader?.('Set-Cookie');
@@ -106,7 +111,7 @@ const ADMIN_READ_ACTIONS = new Set([
 const ADMIN_MUTATION_ACTIONS = new Set([
   "add-user", "banned", "unbanned", "ban-akses", "unban-akses",
   "force", "unforce", "delete-user", "maintenance",
-  "set-maintenance", "migrate-passwords", "migrate_users_format"
+  "set-maintenance", "migrate-passwords", "migrate_users_format", "change-email", "change-password", "edit-user", "reset-count", "block-ip", "unblock-ip", "block-fp", "unblock-fp"
 ]);
 
 function adminActionAllowed(action) {
@@ -117,10 +122,6 @@ function adminActionAllowed(action) {
 function adminSecurityReject(res, status, message) {
   return res.status(status).json({ success: false, error: message });
 }
-
-import crypto from 'node:crypto';
-import admin from 'firebase-admin';
-import bcrypt from 'bcryptjs';
 
 const ADMIN_KEY = process.env.ADMIN_KEY;
 const SESSION_SECRET = process.env.SESSION_SECRET;
@@ -281,17 +282,16 @@ function clearSession(res) {
   addCookie(res, `${ADMIN_CSRF_COOKIE}=; Path=/; Secure; SameSite=Strict; Max-Age=0`);
 }
 function sameOrigin(req) {
-  const origin = req.headers.origin;
+  const origin = String(req.headers?.origin || '');
   if (!origin) return true;
   const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
-  return allowed.length ? allowed.includes(origin) : false;
+  if (allowed.length) return allowed.includes(origin);
+  const host = String(req.headers?.host || '');
+  return origin === `https://${host}` || origin === `http://${host}` || origin === 'null';
 }
 function requireAdmin(req, res) {
   const session = getSession(req);
-  if (!session || !['admin', 'superadmin'].includes(String(session.role).toLowerCase())) {
-    res.status(401).json({ success: false, message: 'Sesi admin tidak valid.' });
-    return null;
-  }
+  if (!session || !['admin', 'superadmin'].includes(String(session.role).toLowerCase())) return null;
   return session;
 }
 
@@ -375,10 +375,12 @@ async function actionLogin(req, res, body, clientJwk) {
     }
   }
   if (!found || !['admin', 'superadmin'].includes(String(found.data.role || '').toLowerCase())) {
+    await logAdmin({ username: identifier, role: 'unknown' }, 'login_failed', 'Percobaan login admin ditolak: akun tidak ditemukan', req);
     return response(res, 401, { success: false, message: 'Akun admin tidak ditemukan.' }, clientJwk);
   }
   const hash = found.data.password_hash;
   if (!hash || !(await bcrypt.compare(password, hash))) {
+    await logAdmin({ username: found.data.username || identifier, role: found.data.role }, 'login_failed', 'Percobaan login admin ditolak: password salah', req);
     return response(res, 401, { success: false, message: 'Password admin salah.' }, clientJwk);
   }
   const session = { uid: found.id, username: found.data.username, role: found.data.role };
@@ -387,8 +389,209 @@ async function actionLogin(req, res, body, clientJwk) {
   return response(res, 200, { success: true, username: session.username, role: session.role }, clientJwk);
 }
 
+
+function decodeLegacyValue(raw) {
+  if (raw && typeof raw === 'object' && raw.data !== undefined) return decodeLegacyValue(raw.data);
+  if (raw && typeof raw === 'object') return raw;
+  if (typeof raw !== 'string') return {};
+  const s = raw.trim();
+  if (!s) return {};
+  const v2 = decryptAtRest(s);
+  if (v2 && typeof v2 === 'object') return v2;
+  try {
+    const parsed = JSON.parse(s);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {}
+  try {
+    const plain = CryptoJS.AES.decrypt(s, ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+    const parsed = JSON.parse(plain);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {}
+  return {};
+}
+
+function normalizeUserData(u) {
+  const out = { ...(u || {}) };
+  if (out.username == null && out.user) out.username = out.user;
+  if (out.email == null && out.mail) out.email = out.mail;
+  if (out.password_hash == null) out.password_hash = out.passwordHash || out.password_hash;
+  if (out.role == null) out.role = out.userRole || 'User';
+  if (out.accessBanned == null && out.banAkses != null) out.accessBanned = Boolean(out.banAkses);
+  if (out.resetCount == null && out.reset_count != null) out.resetCount = Number(out.reset_count || 0);
+  if (out.createdAt == null && out.created_at != null) out.createdAt = out.created_at;
+  if (out.ipHistory == null) out.ipHistory = [];
+  if (out.fpHistory == null) out.fpHistory = [];
+  return out;
+}
+
+async function getMaintenance() {
+  return decryptAtRest((await db.ref('maintenance_status').once('value')).val()?.data) || {};
+}
+
+async function findAdminBySession(session) {
+  if (!session || session.uid === 'env-admin') return null;
+  const snap = await db.ref(`users/${session.uid}`).once('value');
+  const row = snap.val();
+  if (!row) return null;
+  const data = decodeUser(row);
+  return { id: session.uid, data };
+}
+
+async function migratePasswords(session, req) {
+  const users = await getUsers();
+  let scanned = 0, changed = 0, skipped = 0;
+  for (const [id, row] of Object.entries(users)) {
+    scanned++;
+    let u = decodeLegacyValue(row);
+    if (!u || !Object.keys(u).length) { skipped++; continue; }
+    let dirty = false;
+    if (!u.password_hash && u.passwordHash) {
+      u.password_hash = u.passwordHash;
+      delete u.passwordHash;
+      dirty = true;
+    }
+    if (!u.password_hash && typeof u.password === 'string' && u.password.length) {
+      u.password_hash = await bcrypt.hash(u.password, 12);
+      delete u.password;
+      dirty = true;
+    }
+    if (dirty) {
+      await saveUser(id, normalizeUserData(u));
+      changed++;
+    } else skipped++;
+  }
+  await logAdmin(session, 'migrate-passwords', `Scan ${scanned}, diubah ${changed}, dilewati ${skipped}`, req);
+  return { scanned, changed, skipped };
+}
+
+async function migrateUsersFormat(session, req) {
+  const users = await getUsers();
+  let scanned = 0, changed = 0, skipped = 0;
+  for (const [id, row] of Object.entries(users)) {
+    scanned++;
+    const u = normalizeUserData(decodeLegacyValue(row));
+    if (!u || !Object.keys(u).length || !u.username) { skipped++; continue; }
+    await saveUser(id, u);
+    changed++;
+  }
+  await logAdmin(session, 'migrate_users_format', `Scan ${scanned}, dienkripsi/normalisasi ${changed}, dilewati ${skipped}`, req);
+  return { scanned, changed, skipped };
+}
+
+async function updateAdminAccount(session, req, { email, password }) {
+  const found = await findAdminBySession(session);
+  if (!found) throw new Error('Akun admin berbasis ENV tidak dapat diubah dari panel. Gunakan environment variable.');
+  const next = { ...found.data };
+  if (email !== undefined) {
+    const e = safe(email, 200).toLowerCase();
+    if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new Error('Email admin tidak valid.');
+    const other = await findUser(e);
+    if (other && other.id !== found.id) throw new Error('Email sudah digunakan.');
+    next.email = e;
+  }
+  if (password !== undefined) {
+    const p = String(password || '');
+    if (p.length < 8) throw new Error('Password admin minimal 8 karakter.');
+    next.password_hash = await bcrypt.hash(p, 12);
+    delete next.password;
+    delete next.passwordHash;
+    next.forceLogout = false;
+  }
+  await saveUser(found.id, next);
+  await logAdmin(session, password !== undefined ? 'change-password' : 'change-email',
+    password !== undefined ? 'Password admin berhasil diubah' : `Email admin diubah menjadi ${next.email}`, req);
+  return publicUser(found.id, next);
+}
+
+
+async function countAdminAccounts() {
+  const users = await getUsers();
+  let count = 0;
+  for (const row of Object.values(users)) {
+    const u = decodeUser(row);
+    if (['admin', 'superadmin'].includes(String(u.role || '').toLowerCase())) count++;
+  }
+  if (process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD_HASH) count++;
+  return count;
+}
+
+async function registerAdmin(req, res, body, clientJwk) {
+  if (!adminRateCheck(req, 'admin-register', 5)) {
+    return response(res, 429, { success: false, message: 'Terlalu banyak percobaan pendaftaran admin.' }, clientJwk);
+  }
+
+  const existingAdmins = await countAdminAccounts();
+  const session = getSession(req);
+
+  // Bootstrap: pendaftaran pertama boleh dilakukan tanpa login.
+  // Setelah admin pertama ada, pembuatan admin baru hanya boleh dilakukan
+  // oleh admin yang sudah login.
+  if (existingAdmins > 0 && !session) {
+    return response(res, 403, { success: false, message: 'Pendaftaran admin baru hanya dapat dilakukan oleh admin yang sudah login.' }, clientJwk);
+  }
+  if (session && !['admin', 'superadmin'].includes(String(session.role).toLowerCase())) {
+    return response(res, 403, { success: false, message: 'Akses admin ditolak.' }, clientJwk);
+  }
+
+  const username = safe(body.username || body.email?.split('@')[0] || '', 100);
+  const email = safe(body.email || '', 200).toLowerCase();
+  const password = String(body.password || '');
+  const confirmPassword = String(body.confirmPassword || '');
+
+  if (!username || username.length < 3) {
+    return response(res, 400, { success: false, message: 'Username minimal 3 karakter.' }, clientJwk);
+  }
+  if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
+    return response(res, 400, { success: false, message: 'Username mengandung karakter yang tidak valid.' }, clientJwk);
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return response(res, 400, { success: false, message: 'Email tidak valid.' }, clientJwk);
+  }
+  if (password.length < 8) {
+    return response(res, 400, { success: false, message: 'Password admin minimal 8 karakter.' }, clientJwk);
+  }
+  if (confirmPassword && password !== confirmPassword) {
+    return response(res, 400, { success: false, message: 'Konfirmasi password tidak cocok.' }, clientJwk);
+  }
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+    return response(res, 400, { success: false, message: 'Password harus mengandung huruf besar, kecil, dan angka.' }, clientJwk);
+  }
+  if (await findUser(username)) {
+    return response(res, 409, { success: false, message: 'Username sudah digunakan.' }, clientJwk);
+  }
+  if (await findUser(email)) {
+    return response(res, 409, { success: false, message: 'Email sudah digunakan.' }, clientJwk);
+  }
+
+  const id = db.ref('users').push().key;
+  const user = {
+    username,
+    email,
+    role: 'Admin',
+    password_hash: await bcrypt.hash(password, 12),
+    banned: false,
+    accessBanned: false,
+    forceLogout: false,
+    resetCount: 0,
+    createdAt: Date.now(),
+    ipHistory: [],
+    fpHistory: []
+  };
+  await saveUser(id, user);
+
+  const actor = session || { username, role: 'Admin', uid: id };
+  await logAdmin(actor, 'register-admin', `Admin ${username} berhasil didaftarkan`, req);
+
+  return response(res, 201, {
+    success: true,
+    message: 'Admin berhasil didaftarkan.',
+    user: publicUser(id, user)
+  }, clientJwk);
+}
+
 async function handle(req, res, action, body, clientJwk) {
   if (action === 'login') return actionLogin(req, res, body, clientJwk);
+  if (action === 'register') return registerAdmin(req, res, body, clientJwk);
 
   if (action === 'logout') {
     const session = getSession(req);
@@ -401,7 +604,12 @@ async function handle(req, res, action, body, clientJwk) {
   if (!session) return response(res, 401, { success: false, message: 'Sesi admin tidak valid.' }, clientJwk);
 
   if (action === 'me') {
-    return response(res, 200, { success: true, admin: { username: session.username, role: session.role } }, clientJwk);
+    let email = '';
+    if (session.uid !== 'env-admin') {
+      const found = await findAdminBySession(session);
+      email = found?.data?.email || '';
+    }
+    return response(res, 200, { success: true, admin: { username: session.username, role: session.role, email } }, clientJwk);
   }
 
   if (action === 'users' || action === 'list-users') {
@@ -432,6 +640,71 @@ async function handle(req, res, action, body, clientJwk) {
     await saveUser(id, user);
     await logAdmin(session, 'add-user', `Menambah user ${username}`, req);
     return response(res, 200, { success: true, message: 'User berhasil ditambahkan.', user: publicUser(id, user) }, clientJwk);
+  }
+
+
+  if (action === 'maintenance-status') {
+    const maintenance = await getMaintenance();
+    return response(res, 200, { success: true, maintenance }, clientJwk);
+  }
+
+  if (action === 'suspicious-logs') {
+    const limit = Math.min(Math.max(Number(body.limit || req.query.limit || 200), 1), 500);
+    const snap = await db.ref('activity_logs').limitToLast(limit).once('value');
+    const all = Object.values(snap.val() || {}).map(row => decryptAtRest(row?.data)).filter(Boolean)
+      .sort((a,b) => Number(b.timestamp||0) - Number(a.timestamp||0));
+    const suspicious = all.filter(x => {
+      const a = String(x.action || '').toLowerCase();
+      return /failed|gagal|blocked|block_|sharing|reset ditolak|ban|force|suspicious|ditolak/.test(a);
+    });
+    return response(res, 200, { success: true, logs: suspicious }, clientJwk);
+  }
+
+  if (action === 'change-email') {
+    try {
+      const user = await updateAdminAccount(session, req, { email: body.email });
+      return response(res, 200, { success: true, message: 'Email admin berhasil diubah.', user }, clientJwk);
+    } catch (e) {
+      return response(res, 400, { success: false, message: e.message }, clientJwk);
+    }
+  }
+
+  if (action === 'change-password') {
+    try {
+      const user = await updateAdminAccount(session, req, { password: body.password });
+      clearSession(res);
+      return response(res, 200, { success: true, message: 'Password admin berhasil diubah. Silakan login kembali.', user }, clientJwk);
+    } catch (e) {
+      return response(res, 400, { success: false, message: e.message }, clientJwk);
+    }
+  }
+
+  if (action === 'edit-user') {
+    const found = await findUser(body.username || body.email || body.id || req.query.username || '');
+    if (!found) return response(res, 404, { success: false, message: 'User tidak ditemukan.' }, clientJwk);
+    const u = { ...found.data };
+    for (const key of ['username','email','phone','role','expiry_date','status','isActive','needsActivation','activationStatus']) {
+      if (body[key] !== undefined) u[key] = key === 'isActive' || key === 'needsActivation' ? Boolean(body[key]) : safe(body[key], 300);
+    }
+    if (body.password) {
+      const p = String(body.password);
+      if (p.length < 6) return response(res, 400, { success:false, message:'Password minimal 6 karakter.' }, clientJwk);
+      u.password_hash = await bcrypt.hash(p, 12);
+      delete u.password; delete u.passwordHash;
+    }
+    await saveUser(found.id, u);
+    await logAdmin(session, 'edit-user', `Mengubah data user ${u.username}`, req);
+    return response(res, 200, { success:true, message:'Data user berhasil diubah.', user:publicUser(found.id,u) }, clientJwk);
+  }
+
+  if (action === 'migrate-passwords') {
+    const result = await migratePasswords(session, req);
+    return response(res, 200, { success:true, message:'Migrasi password selesai.', result }, clientJwk);
+  }
+
+  if (action === 'migrate_users_format') {
+    const result = await migrateUsersFormat(session, req);
+    return response(res, 200, { success:true, message:'Migrasi format data selesai.', result }, clientJwk);
   }
 
   const identifier = safe(body.username || body.email || req.query.username || req.query.user || '', 200);
@@ -473,7 +746,7 @@ async function handle(req, res, action, body, clientJwk) {
   }
 
   if (action === 'logs') {
-    const limit = Math.min(Math.max(Number(body.limit || req.query.limit || 100), 1), 300);
+    const limit = Math.min(Math.max(Number(body.limit || req.query.limit || 500), 1), 1000);
     const snap = await db.ref('activity_logs').limitToLast(limit).once('value');
     const logs = Object.values(snap.val() || {}).map(row => decryptAtRest(row?.data)).filter(Boolean)
       .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));

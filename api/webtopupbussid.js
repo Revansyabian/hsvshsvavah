@@ -1856,9 +1856,46 @@ export default async function webtopupbussid(req,res) {
     const result=await securityAction(req,res,queryAction);
     if (result) return result;
   }
+
   const body=req.body||{};
-  if (body.path) return revanstoreHandler(req,res);
-  if (body.action && looksLikeReset(body.action)) return resetHandler(req,res);
-  if (body.action) return registerHandler(req,res);
+  const ip=unifiedIP(req), fp=unifiedFP(req);
+  // Catat setiap aksi endpoint webtopup tanpa pernah menyimpan password/token
+  // atau isi payload sensitif. Aksi spesifik yang sudah punya log tetap boleh
+  // menghasilkan log detail tambahan.
+  if (body.path) {
+    const actionName=`web:${String(body.path).slice(0,120)}`;
+    try {
+      const result=await revanstoreHandler(req,res);
+      await unifiedLog(String(body.username||body.email||body.operator||''), actionName, ip, fp,
+        `method=${String(body.method||'GET').slice(0,12)}`);
+      return result;
+    } catch (e) {
+      await unifiedLog(String(body.username||body.email||body.operator||''), `${actionName}:error`, ip, fp, 'Request gagal di server');
+      throw e;
+    }
+  }
+  if (body.action && looksLikeReset(body.action)) {
+    const actionName=`web:${String(body.action).slice(0,80)}`;
+    try {
+      const result=await resetHandler(req,res);
+      await unifiedLog(String(body.username||body.email||''), actionName, ip, fp, 'Aksi reset password');
+      return result;
+    } catch (e) {
+      await unifiedLog(String(body.username||body.email||''), `${actionName}:error`, ip, fp, 'Request gagal di server');
+      throw e;
+    }
+  }
+  if (body.action) {
+    const actionName=`web:${String(body.action).slice(0,80)}`;
+    try {
+      const result=await registerHandler(req,res);
+      await unifiedLog(String(body.username||body.email||''), actionName, ip, fp, 'Aksi webtopup');
+      return result;
+    } catch (e) {
+      await unifiedLog(String(body.username||body.email||''), `${actionName}:error`, ip, fp, 'Request gagal di server');
+      throw e;
+    }
+  }
+  await unifiedLog('', 'web:invalid_request', ip, fp, 'Permintaan tidak valid');
   return res.status(400).json({error:'Permintaan tidak valid'});
 }
