@@ -14,7 +14,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const server = express();
+
 const PAGES_DIR = path.join(__dirname, 'pages');
+
+/* =========================================
+   BASIC CONFIG
+========================================= */
 
 server.disable('x-powered-by');
 server.set('trust proxy', 1);
@@ -25,7 +30,7 @@ server.set('trust proxy', 1);
 
 server.use(express.json({
   limit: '200kb',
-  strict: true
+  strict: false
 }));
 
 server.use(express.urlencoded({
@@ -51,6 +56,7 @@ server.use((req, res, next) => {
     !allowedOrigins.includes(origin)
   ) {
     return res.status(403).json({
+      success: false,
       error: 'Origin tidak diizinkan'
     });
   }
@@ -67,20 +73,17 @@ server.use((req, res, next) => {
     );
 
     res.setHeader(
-      'Vary',
-      'Origin'
+      'Access-Control-Allow-Headers',
+      'Content-Type, X-Requested-With, X-Fingerprint, X-Client-Key'
     );
+
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+    );
+
+    res.setHeader('Vary', 'Origin');
   }
-
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, X-Requested-With, X-Fingerprint, X-Client-Key'
-  );
-
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET,POST,DELETE,OPTIONS'
-  );
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
@@ -90,52 +93,49 @@ server.use((req, res, next) => {
 });
 
 /* =========================================
-   GET ORIGINAL API PATH
+   ORIGINAL PATH
 ========================================= */
 
 function getOriginalPath(req) {
-  const url = String(req.originalUrl || '');
+  const value = String(
+    req.originalUrl ||
+    req.url ||
+    ''
+  );
 
-  const questionIndex = url.indexOf('?');
+  const q = value.indexOf('?');
 
-  if (questionIndex >= 0) {
-    return url.slice(0, questionIndex);
-  }
-
-  return url;
+  return q >= 0
+    ? value.slice(0, q)
+    : value;
 }
 
 /* =========================================
-   ENCRYPTION EXEMPTIONS
+   ENCRYPTION EXEMPTION
 ========================================= */
 
 function isExempt(req) {
   const originalPath = getOriginalPath(req);
 
   /*
-   * RVNStore tetap terpisah.
+   * RVNStore tetap terpisah
    */
   if (originalPath === '/api/rvnstore') {
     return true;
   }
 
   /*
-   * Admin API mengurus transport encryption
-   * sendiri di api/admin.js.
-   *
-   * Karena middleware dipasang pada /api,
-   * jangan mengecek req.path === /api/admin.
+   * ADMIN MENGURUS ENCRYPTION SENDIRI
    */
   if (originalPath === '/api/admin') {
     return true;
   }
 
   /*
-   * WebTopup public key.
+   * PUBLIC KEY WEBTOPUP
    *
-   * Request pertama memang belum mempunyai
-   * X-Client-Key, karena browser sedang meminta
-   * public key server.
+   * Request pertama belum memiliki
+   * X-Client-Key.
    */
   if (
     (
@@ -151,18 +151,20 @@ function isExempt(req) {
 }
 
 /* =========================================
-   ENCRYPTED WEBTOPUP TRANSPORT
+   WEBTOPUP ENCRYPTED TRANSPORT
 ========================================= */
 
 function encryptedTransport(req, res, next) {
+
   if (isExempt(req)) {
     return next();
   }
 
-  const clientKey = req.headers['x-client-key'];
+  const clientKey =
+    req.headers['x-client-key'];
 
   /*
-   * Request WebTopup harus encrypted.
+   * Request harus encrypted
    */
   if (
     req.body &&
@@ -170,14 +172,20 @@ function encryptedTransport(req, res, next) {
     Object.keys(req.body).length > 0
   ) {
     try {
-      req.body = decryptRequest(req.body);
+
+      req.body = decryptRequest(
+        req.body
+      );
+
     } catch (error) {
+
       console.error(
-        'Decrypt request error:',
+        '[WEBTOPUP DECRYPT]',
         error?.message || error
       );
 
       return res.status(400).json({
+        success: false,
         error: 'Encrypted request tidak valid'
       });
     }
@@ -185,23 +193,29 @@ function encryptedTransport(req, res, next) {
 
   if (!clientKey) {
     return res.status(400).json({
+      success: false,
       error: 'Client public key diperlukan'
     });
   }
 
   /*
-   * Simpan res.json asli.
+   * Simpan res.json asli
    */
-  const originalJson = res.json.bind(res);
+  const originalJson =
+    res.json.bind(res);
 
   /*
-   * Encrypt setiap response WebTopup.
+   * Encrypt response
    */
   res.json = (body) => {
+
     try {
+
       /*
-       * Kalau handler lama sudah menghasilkan
-       * envelope encrypted, jangan encrypt dua kali.
+       * Handler lama mungkin sudah
+       * menghasilkan encrypted envelope.
+       *
+       * Jangan encrypt dua kali.
        */
       if (
         body &&
@@ -209,22 +223,32 @@ function encryptedTransport(req, res, next) {
         body.data &&
         typeof body.data === 'object' &&
         body.data.v === 1 &&
-        body.data.alg === 'RSA-OAEP-256/AES-256-GCM'
+        body.data.alg ===
+          'RSA-OAEP-256/AES-256-GCM'
       ) {
-        return originalJson(body.data);
+
+        return originalJson(
+          body.data
+        );
       }
 
       return originalJson(
-        encryptResponse(body, clientKey)
+        encryptResponse(
+          body,
+          clientKey
+        )
       );
+
     } catch (error) {
+
       console.error(
-        'Encrypt response error:',
+        '[WEBTOPUP ENCRYPT]',
         error?.message || error
       );
 
       if (!res.headersSent) {
         return originalJson({
+          success: false,
           error: 'Gagal mengenkripsi response'
         });
       }
@@ -236,12 +260,11 @@ function encryptedTransport(req, res, next) {
   next();
 }
 
-/*
- * Hanya WebTopup yang menggunakan middleware
- * encrypted transport ini.
- *
- * Admin dan RVNStore tidak dilewatkan ke sini.
- */
+/* =========================================
+   IMPORTANT
+   API MIDDLEWARE
+========================================= */
+
 server.use(
   '/api',
   encryptedTransport
@@ -254,16 +277,26 @@ server.use(
 server.all(
   '/api/webtopup',
   async (req, res) => {
+
     try {
-      return await webtopupbussid(req, res);
+
+      return await webtopupbussid(
+        req,
+        res
+      );
+
     } catch (error) {
+
       console.error(
-        'WEBTOPUP ERROR:',
-        error?.stack || error?.message || error
+        '[WEBTOPUP]',
+        error?.stack ||
+        error?.message ||
+        error
       );
 
       if (!res.headersSent) {
         return res.status(500).json({
+          success: false,
           error: 'Internal server error'
         });
       }
@@ -274,16 +307,26 @@ server.all(
 server.all(
   '/api/webtopupbussid',
   async (req, res) => {
+
     try {
-      return await webtopupbussid(req, res);
+
+      return await webtopupbussid(
+        req,
+        res
+      );
+
     } catch (error) {
+
       console.error(
-        'WEBTOPUP BUSSID ERROR:',
-        error?.stack || error?.message || error
+        '[WEBTOPUP BUSSID]',
+        error?.stack ||
+        error?.message ||
+        error
       );
 
       if (!res.headersSent) {
         return res.status(500).json({
+          success: false,
           error: 'Internal server error'
         });
       }
@@ -298,16 +341,26 @@ server.all(
 server.all(
   '/api/rvnstore',
   async (req, res) => {
+
     try {
-      return await rvnstore(req, res);
+
+      return await rvnstore(
+        req,
+        res
+      );
+
     } catch (error) {
+
       console.error(
-        'RVNSTORE ERROR:',
-        error?.stack || error?.message || error
+        '[RVNSTORE]',
+        error?.stack ||
+        error?.message ||
+        error
       );
 
       if (!res.headersSent) {
         return res.status(500).json({
+          success: false,
           error: 'Internal server error'
         });
       }
@@ -322,16 +375,26 @@ server.all(
 server.all(
   '/api/admin',
   async (req, res) => {
+
     try {
-      return await adminHandler(req, res);
+
+      return await adminHandler(
+        req,
+        res
+      );
+
     } catch (error) {
+
       console.error(
-        'ADMIN API ERROR:',
-        error?.stack || error?.message || error
+        '[ADMIN API]',
+        error?.stack ||
+        error?.message ||
+        error
       );
 
       if (!res.headersSent) {
         return res.status(500).json({
+          success: false,
           error: 'Internal server error'
         });
       }
@@ -346,8 +409,12 @@ server.all(
 server.get(
   '/',
   (_req, res) => {
-    res.sendFile(
-      path.join(__dirname, 'index.html')
+
+    return res.sendFile(
+      path.join(
+        __dirname,
+        'index.html'
+      )
     );
   }
 );
@@ -357,19 +424,14 @@ server.get(
 ========================================= */
 
 server.get(
-  '/admin',
+  ['/admin', '/admin/'],
   (_req, res) => {
-    res.sendFile(
-      path.join(__dirname, 'admin.html')
-    );
-  }
-);
 
-server.get(
-  '/admin/',
-  (_req, res) => {
-    res.sendFile(
-      path.join(__dirname, 'admin.html')
+    return res.sendFile(
+      path.join(
+        __dirname,
+        'admin.html'
+      )
     );
   }
 );
@@ -379,40 +441,37 @@ server.get(
 ========================================= */
 
 server.get(
-  '/admin/register',
+  ['/admin/register', '/admin/register/'],
   (_req, res) => {
-    res.sendFile(
-      path.join(__dirname, 'admin-register.html')
-    );
-  }
-);
 
-server.get(
-  '/admin/register/',
-  (_req, res) => {
-    res.sendFile(
-      path.join(__dirname, 'admin-register.html')
+    return res.sendFile(
+      path.join(
+        __dirname,
+        'admin-register.html'
+      )
     );
   }
 );
 
 /* =========================================
-   PAGES
+   FRONTEND PAGES
 ========================================= */
 
-for (
-  const name of [
-    'login',
-    'dashboard',
-    'register',
-    'reset-password',
-    'confirm-password'
-  ]
-) {
+const pageNames = [
+  'login',
+  'dashboard',
+  'register',
+  'reset-password',
+  'confirm-password'
+];
+
+for (const name of pageNames) {
+
   server.get(
     `/pages/${name}`,
     (_req, res) => {
-      res.sendFile(
+
+      return res.sendFile(
         path.join(
           PAGES_DIR,
           `${name}.html`
@@ -420,27 +479,34 @@ for (
       );
     }
   );
+
 }
 
 /* =========================================
-   STATIC PAGES
+   STATIC /PAGES
 ========================================= */
 
 server.use(
   '/pages',
-  express.static(PAGES_DIR, {
-    index: false
-  })
+  express.static(
+    PAGES_DIR,
+    {
+      index: false
+    }
+  )
 );
 
-/*
- * Static file harus setelah route khusus
- * supaya /admin tidak tertabrak.
- */
+/* =========================================
+   STATIC ROOT
+========================================= */
+
 server.use(
-  express.static(__dirname, {
-    index: false
-  })
+  express.static(
+    __dirname,
+    {
+      index: false
+    }
+  )
 );
 
 /* =========================================
@@ -448,8 +514,17 @@ server.use(
 ========================================= */
 
 server.use(
-  (_req, res) => {
-    res.status(404).send('Not Found');
+  (req, res) => {
+
+    console.log(
+      '[404]',
+      req.method,
+      req.originalUrl
+    );
+
+    return res.status(404).send(
+      'Not Found'
+    );
   }
 );
 
