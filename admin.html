@@ -1,191 +1,1573 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin Panel</title>
+
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:#0b1020;color:#eef2ff}
-.wrap{max-width:1180px;margin:auto;padding:24px}.card{background:#121a2d;border:1px solid #25304a;border-radius:16px;padding:20px;margin-bottom:18px;box-shadow:0 10px 30px #0003}
-h1,h2{margin:0 0 14px}input,select,button,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #33405e;background:#0d1425;color:#fff;margin:6px 0}button{cursor:pointer;background:#2563eb;border:0;font-weight:700}button.danger{background:#dc2626}button.gray{background:#334155}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.stat{padding:18px;border-radius:14px;background:#0d1425}.num{font-size:28px;font-weight:800}.hidden{display:none!important}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.pill{display:inline-block;padding:4px 8px;border-radius:99px;background:#1e293b;font-size:12px}.table{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #27334d;text-align:left;white-space:nowrap}.actions{display:flex;gap:5px;flex-wrap:wrap}.actions button{width:auto;padding:7px 10px;font-size:12px}.muted{color:#94a3b8;font-size:13px}.login{max-width:430px;margin:9vh auto}.err{color:#fca5a5;margin-top:8px}.ok{color:#86efac}
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Inter,system-ui,Arial,sans-serif;
+    background:#0b1020;
+    color:#eef2ff;
+}
+
+.wrap{
+    max-width:1180px;
+    margin:auto;
+    padding:24px;
+}
+
+.card{
+    background:#121a2d;
+    border:1px solid #25304a;
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:18px;
+    box-shadow:0 10px 30px #0003;
+}
+
+h1,h2{
+    margin:0 0 14px;
+}
+
+input,
+select,
+button,
+textarea{
+    width:100%;
+    padding:12px;
+    border-radius:10px;
+    border:1px solid #33405e;
+    background:#0d1425;
+    color:#fff;
+    margin:6px 0;
+    font:inherit;
+}
+
+button{
+    cursor:pointer;
+    background:#2563eb;
+    border:0;
+    font-weight:700;
+}
+
+button:hover{
+    opacity:.9;
+}
+
+button.danger{
+    background:#dc2626;
+}
+
+button.gray{
+    background:#334155;
+}
+
+button.green{
+    background:#16a34a;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:12px;
+}
+
+.stat{
+    padding:18px;
+    border-radius:14px;
+    background:#0d1425;
+}
+
+.num{
+    font-size:28px;
+    font-weight:800;
+    margin-top:5px;
+}
+
+.hidden{
+    display:none!important;
+}
+
+.top{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    flex-wrap:wrap;
+}
+
+.pill{
+    display:inline-block;
+    padding:4px 8px;
+    border-radius:99px;
+    background:#1e293b;
+    font-size:12px;
+}
+
+.table{
+    overflow:auto;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th,
+td{
+    padding:10px;
+    border-bottom:1px solid #27334d;
+    text-align:left;
+    white-space:nowrap;
+}
+
+.actions{
+    display:flex;
+    gap:5px;
+    flex-wrap:wrap;
+}
+
+.actions button{
+    width:auto;
+    padding:7px 10px;
+    font-size:12px;
+}
+
+.muted{
+    color:#94a3b8;
+    font-size:13px;
+}
+
+.err{
+    color:#fca5a5;
+    margin-top:8px;
+}
+
+.ok{
+    color:#86efac;
+    margin-top:8px;
+}
+
+.login{
+    max-width:430px;
+    margin:9vh auto;
+}
+
+code{
+    display:inline-block;
+    margin:4px 0;
+    padding:5px 7px;
+    background:#0d1425;
+    border-radius:6px;
+    color:#93c5fd;
+}
+
+.status-dot{
+    display:inline-block;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:#22c55e;
+    margin-right:6px;
+}
+
+@media(max-width:600px){
+    .wrap{
+        padding:12px;
+    }
+
+    .card{
+        padding:15px;
+    }
+
+    .actions button{
+        flex:1;
+    }
+}
 </style>
 </head>
+
 <body>
+
 <div class="wrap">
-  <section id="login" class="card login">
-    <h1>Admin Panel</h1>
-    <p class="muted">Transport API menggunakan RSA-OAEP + AES-256-GCM. Tidak ada API secret statis di browser.</p>
-    <input id="loginUser" placeholder="Username / Email" autocomplete="username">
-    <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
-    <button onclick="login()">Login</button>
-    <div id="loginMsg" class="err"></div>
-  </section>
 
-  <section id="app" class="hidden">
-    <div class="top card">
-      <div><h1>Dashboard Admin</h1><div id="who" class="muted"></div></div>
-      <div class="actions">
-        <button class="gray" onclick="loadStats();loadUsers()">Refresh</button>
-        <button class="danger" onclick="logout()">Logout</button>
-      </div>
-    </div>
+    <!-- LOGIN -->
+    <section id="loginPanel" class="card login">
 
-    <div class="grid">
-      <div class="stat">Total User<div id="total" class="num">-</div></div>
-      <div class="stat">Banned<div id="banned" class="num">-</div></div>
-      <div class="stat">Ban Akses<div id="accessBanned" class="num">-</div></div>
-      <div class="stat">Force Logout<div id="forced" class="num">-</div></div>
-    </div>
+        <h1>Admin Panel</h1>
 
-    <div class="card">
-      <h2>Tambah User</h2>
-      <div class="grid">
-        <input id="newUser" placeholder="Username">
-        <input id="newEmail" placeholder="Email">
-        <input id="newPass" type="password" placeholder="Password">
-        <select id="newRole"><option>User</option><option>Admin</option></select>
-      </div>
-      <button onclick="addUser()">Add User</button>
-    </div>
+        <input
+            id="loginUser"
+            placeholder="Username / Email"
+            autocomplete="username"
+        >
 
-    <div class="card">
-      <h2>Maintenance</h2>
-      <div class="grid">
-        <select id="maintEnabled"><option value="false">OFF</option><option value="true">ON</option></select>
-        <input id="maintTitle" value="SEDANG PERBAIKAN SISTEM" placeholder="Judul">
-        <input id="maintUntil" placeholder="Sampai kapan (opsional)">
-      </div>
-      <textarea id="maintMessage" placeholder="Pesan maintenance"></textarea>
-      <button onclick="setMaintenance()">Simpan Maintenance</button>
-    </div>
+        <input
+            id="loginPass"
+            type="password"
+            placeholder="Password"
+            autocomplete="current-password"
+        >
 
-    <div class="card">
-      <h2>User</h2>
-      <input id="search" placeholder="Cari username/email..." oninput="renderUsers()">
-      <div class="table"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="users"></tbody></table></div>
-    </div>
+        <input
+            id="loginApiKey"
+            type="password"
+            placeholder="API Key"
+            autocomplete="off"
+        >
 
-    <div class="card">
-      <div class="top"><h2>Activity Logs</h2><button onclick="loadLogs()" style="width:auto">Load Logs</button></div>
-      <div class="table"><table><thead><tr><th>Waktu</th><th>User</th><th>Action</th><th>IP</th><th>FP</th><th>Detail</th></tr></thead><tbody id="logs"></tbody></table></div>
-    </div>
+        <button id="loginButton" onclick="login()">
+            Login
+        </button>
 
-    <div class="card">
-      <h2>URL Action API</h2>
-      <p class="muted">Semua operasi admin menggunakan endpoint yang sama:</p>
-      <code>/api/admin?action=login</code><br>
-      <code>/api/admin?action=users</code><br>
-      <code>/api/admin?action=add-user</code><br>
-      <code>/api/admin?action=banned&amp;username=namauser</code><br>
-      <code>/api/admin?action=unbanned&amp;username=namauser</code><br>
-      <code>/api/admin?action=ban-akses&amp;username=namauser</code><br>
-      <code>/api/admin?action=unban-akses&amp;username=namauser</code><br>
-      <code>/api/admin?action=force&amp;username=namauser</code><br>
-      <code>/api/admin?action=unforce&amp;username=namauser</code><br>
-      <code>/api/admin?action=delete-user&amp;username=namauser</code><br>
-      <code>/api/admin?action=maintenance</code><br>
-      <code>/api/admin?action=logs</code><br>
-      <code>/api/admin?action=stats</code><br>
-      <code>/api/admin?action=logout</code>
-    </div>
-  </section>
+        <div id="loginMsg" class="err"></div>
+
+    </section>
+
+
+    <!-- APP -->
+    <section id="appPanel" class="hidden">
+
+        <!-- HEADER -->
+        <div class="top card">
+
+            <div>
+                <h1>Dashboard Admin</h1>
+
+                <div id="who" class="muted"></div>
+
+                <div class="muted" style="margin-top:5px">
+                    <span class="status-dot"></span>
+                    Session aktif
+                </div>
+            </div>
+
+            <div class="actions">
+
+                <button
+                    class="gray"
+                    onclick="refreshAll()"
+                >
+                    Refresh
+                </button>
+
+                <button
+                    class="danger"
+                    onclick="logout()"
+                >
+                    Logout
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- STATS -->
+        <div class="grid">
+
+            <div class="stat">
+                Total User
+                <div id="total" class="num">-</div>
+            </div>
+
+            <div class="stat">
+                Banned
+                <div id="banned" class="num">-</div>
+            </div>
+
+            <div class="stat">
+                Ban Akses
+                <div id="accessBanned" class="num">-</div>
+            </div>
+
+            <div class="stat">
+                Force Logout
+                <div id="forced" class="num">-</div>
+            </div>
+
+        </div>
+
+
+        <!-- ADD USER -->
+        <div class="card">
+
+            <h2>Tambah User</h2>
+
+            <div class="grid">
+
+                <input
+                    id="newUser"
+                    placeholder="Username"
+                >
+
+                <input
+                    id="newEmail"
+                    type="email"
+                    placeholder="Email"
+                >
+
+                <input
+                    id="newPass"
+                    type="password"
+                    placeholder="Password"
+                >
+
+                <select id="newRole">
+                    <option value="User">User</option>
+                    <option value="Admin">Admin</option>
+                </select>
+
+            </div>
+
+            <button onclick="addUser()">
+                Add User
+            </button>
+
+        </div>
+
+
+        <!-- MAINTENANCE -->
+        <div class="card">
+
+            <h2>Maintenance</h2>
+
+            <div class="grid">
+
+                <select id="maintEnabled">
+                    <option value="false">OFF</option>
+                    <option value="true">ON</option>
+                </select>
+
+                <input
+                    id="maintTitle"
+                    value="SEDANG PERBAIKAN SISTEM"
+                    placeholder="Judul"
+                >
+
+                <input
+                    id="maintUntil"
+                    placeholder="Sampai kapan (opsional)"
+                >
+
+            </div>
+
+            <textarea
+                id="maintMessage"
+                placeholder="Pesan maintenance"
+            ></textarea>
+
+            <button onclick="setMaintenance()">
+                Simpan Maintenance
+            </button>
+
+        </div>
+
+
+        <!-- USERS -->
+        <div class="card">
+
+            <h2>User</h2>
+
+            <input
+                id="search"
+                placeholder="Cari username/email..."
+                oninput="renderUsers()"
+            >
+
+            <div class="table">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="users"></tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+
+        <!-- LOGS -->
+        <div class="card">
+
+            <div class="top">
+
+                <h2>Activity Logs</h2>
+
+                <button
+                    class="gray"
+                    onclick="loadLogs()"
+                    style="width:auto"
+                >
+                    Load Logs
+                </button>
+
+            </div>
+
+            <div class="table">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>IP</th>
+                            <th>FP</th>
+                            <th>Detail</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="logs"></tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+
+        <!-- API ACTION -->
+        <div class="card">
+
+            <h2>Admin API</h2>
+
+            <code>/api/admin?action=login</code><br>
+            <code>/api/admin?action=users</code><br>
+            <code>/api/admin?action=add-user</code><br>
+            <code>/api/admin?action=banned&amp;username=namauser</code><br>
+            <code>/api/admin?action=unbanned&amp;username=namauser</code><br>
+            <code>/api/admin?action=ban-akses&amp;username=namauser</code><br>
+            <code>/api/admin?action=unban-akses&amp;username=namauser</code><br>
+            <code>/api/admin?action=force&amp;username=namauser</code><br>
+            <code>/api/admin?action=unforce&amp;username=namauser</code><br>
+            <code>/api/admin?action=delete-user&amp;username=namauser</code><br>
+            <code>/api/admin?action=maintenance</code><br>
+            <code>/api/admin?action=logs</code><br>
+            <code>/api/admin?action=stats</code><br>
+            <code>/api/admin?action=logout</code>
+
+        </div>
+
+    </section>
+
 </div>
 
-<script>
-const API='/api/admin';
-let serverKey=null, clientKeys=null, usersCache=[];
 
-const b64 = a => btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-const unb64 = s => { s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4)s+='='; return Uint8Array.from(atob(s),c=>c.charCodeAt(0)); };
+<script>
+
+const API = '/api/admin';
+
+let serverKey = null;
+let clientKeys = null;
+
+/*
+ * API KEY SENGAJA HANYA DISIMPAN DI MEMORY.
+ * Tidak menggunakan localStorage/sessionStorage.
+ */
+let adminApiKey = '';
+
+let usersCache = [];
+
+
+/* =========================
+   ELEMENT
+========================= */
+
+const $ = id => document.getElementById(id);
+
+
+/* =========================
+   BASE64
+========================= */
+
+function b64(data){
+
+    return btoa(
+        String.fromCharCode(
+            ...new Uint8Array(data)
+        )
+    )
+    .replace(/\+/g,'-')
+    .replace(/\//g,'_')
+    .replace(/=+$/,'');
+
+}
+
+
+function unb64(value){
+
+    let s = String(value || '');
+
+    s = s
+        .replace(/-/g,'+')
+        .replace(/_/g,'/');
+
+    while(s.length % 4){
+        s += '=';
+    }
+
+    return Uint8Array.from(
+        atob(s),
+        c => c.charCodeAt(0)
+    );
+
+}
+
+
+/* =========================
+   CRYPTO
+========================= */
 
 async function initCrypto(){
-  const r=await fetch(API+'?action=key',{cache:'no-store'});
-  if(!r.ok) throw new Error('Public key server gagal diambil');
-  const j=await r.json();
-  serverKey=await crypto.subtle.importKey('jwk',j.publicKey,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
-  clientKeys=await crypto.subtle.generateKey(
-    {name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},
-    true,['encrypt','decrypt']
-  );
+
+    const r = await fetch(
+        API + '?action=key',
+        {
+            method:'GET',
+            cache:'no-store',
+            credentials:'include'
+        }
+    );
+
+    if(!r.ok){
+        throw new Error('Public key server gagal diambil');
+    }
+
+    const j = await r.json();
+
+    if(!j.publicKey){
+        throw new Error('Public key tidak tersedia');
+    }
+
+    serverKey = await crypto.subtle.importKey(
+        'jwk',
+        j.publicKey,
+        {
+            name:'RSA-OAEP',
+            hash:'SHA-256'
+        },
+        false,
+        ['encrypt']
+    );
+
+    clientKeys = await crypto.subtle.generateKey(
+        {
+            name:'RSA-OAEP',
+            modulusLength:2048,
+            publicExponent:new Uint8Array([1,0,1]),
+            hash:'SHA-256'
+        },
+        true,
+        ['encrypt','decrypt']
+    );
+
 }
+
+
+/* =========================
+   REQUEST
+========================= */
+
 async function request(action,payload={}){
-  if(!clientKeys) await initCrypto();
-  const aes=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const plain=new TextEncoder().encode(JSON.stringify(payload));
-  const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},aes,plain);
-  const rawKey=await crypto.subtle.exportKey('raw',aes);
-  const wrapped=await crypto.subtle.encrypt({name:'RSA-OAEP'},serverKey,rawKey);
-  const jwk=await crypto.subtle.exportKey('jwk',clientKeys.publicKey);
-  const bytes=new Uint8Array(encrypted), tag=bytes.slice(-16), data=bytes.slice(0,-16);
-  const envelope={v:1,alg:'RSA-OAEP-256/AES-256-GCM',key:b64(wrapped),iv:b64(iv),tag:b64(tag),data:b64(data)};
-  const r=await fetch(API+'?action='+encodeURIComponent(action),{
-    method:'POST',credentials:'include',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({envelope,clientPublicKey:jwk})
-  });
-  const raw=await r.json();
-  if(!raw.encrypted) return raw;
-  const aesRaw=await crypto.subtle.decrypt({name:'RSA-OAEP'},clientKeys.privateKey,unb64(raw.data.key));
-  const aesKey=await crypto.subtle.importKey('raw',aesRaw,{name:'AES-GCM'},false,['decrypt']);
-  const all=new Uint8Array([...unb64(raw.data.data),...unb64(raw.data.tag)]);
-  const dec=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(raw.data.iv)},aesKey,all);
-  const out=JSON.parse(new TextDecoder().decode(dec));
-  if(!r.ok) throw new Error(out.message||'Request gagal');
-  return out;
+
+    if(!serverKey || !clientKeys){
+        await initCrypto();
+    }
+
+    /*
+     * API KEY ikut masuk payload terenkripsi.
+     * Tidak disimpan di browser storage.
+     */
+    const securePayload = {
+        ...payload,
+        apiKey:adminApiKey
+    };
+
+
+    const aes = await crypto.subtle.generateKey(
+        {
+            name:'AES-GCM',
+            length:256
+        },
+        true,
+        ['encrypt','decrypt']
+    );
+
+
+    const iv = crypto.getRandomValues(
+        new Uint8Array(12)
+    );
+
+
+    const plain = new TextEncoder().encode(
+        JSON.stringify(securePayload)
+    );
+
+
+    const encrypted = await crypto.subtle.encrypt(
+        {
+            name:'AES-GCM',
+            iv
+        },
+        aes,
+        plain
+    );
+
+
+    const rawKey = await crypto.subtle.exportKey(
+        'raw',
+        aes
+    );
+
+
+    const wrapped = await crypto.subtle.encrypt(
+        {
+            name:'RSA-OAEP'
+        },
+        serverKey,
+        rawKey
+    );
+
+
+    const jwk = await crypto.subtle.exportKey(
+        'jwk',
+        clientKeys.publicKey
+    );
+
+
+    const bytes = new Uint8Array(encrypted);
+
+    const tag = bytes.slice(-16);
+
+    const data = bytes.slice(0,-16);
+
+
+    const envelope = {
+
+        v:1,
+
+        alg:'RSA-OAEP-256/AES-256-GCM',
+
+        key:b64(wrapped),
+
+        iv:b64(iv),
+
+        tag:b64(tag),
+
+        data:b64(data)
+
+    };
+
+
+    const r = await fetch(
+        API + '?action=' +
+        encodeURIComponent(action),
+        {
+            method:'POST',
+            credentials:'include',
+
+            headers:{
+                'Content-Type':'application/json'
+            },
+
+            body:JSON.stringify({
+
+                envelope,
+
+                clientPublicKey:jwk
+
+            })
+        }
+    );
+
+
+    const raw = await r.json();
+
+
+    if(!raw.encrypted){
+
+        if(!r.ok){
+            throw new Error(
+                raw.message ||
+                raw.error ||
+                'Request gagal'
+            );
+        }
+
+        return raw;
+
+    }
+
+
+    if(!raw.data){
+        throw new Error('Response terenkripsi tidak valid');
+    }
+
+
+    const aesRaw = await crypto.subtle.decrypt(
+        {
+            name:'RSA-OAEP'
+        },
+        clientKeys.privateKey,
+        unb64(raw.data.key)
+    );
+
+
+    const aesKey = await crypto.subtle.importKey(
+        'raw',
+        aesRaw,
+        {
+            name:'AES-GCM'
+        },
+        false,
+        ['decrypt']
+    );
+
+
+    const cipherData = new Uint8Array([
+
+        ...unb64(raw.data.data),
+
+        ...unb64(raw.data.tag)
+
+    ]);
+
+
+    const decrypted = await crypto.subtle.decrypt(
+        {
+            name:'AES-GCM',
+            iv:unb64(raw.data.iv)
+        },
+        aesKey,
+        cipherData
+    );
+
+
+    const result = JSON.parse(
+        new TextDecoder().decode(decrypted)
+    );
+
+
+    if(!r.ok){
+
+        throw new Error(
+            result.message ||
+            result.error ||
+            'Request gagal'
+        );
+
+    }
+
+
+    return result;
+
 }
-function msg(t,ok=false){document.getElementById('loginMsg').textContent=t;document.getElementById('loginMsg').className=ok?'ok':'err';}
+
+
+/* =========================
+   LOGIN
+========================= */
+
 async function login(){
-  try{
-    msg('Memproses...');
-    const r=await request('login',{username:loginUser.value,password:loginPass.value});
-    if(!r.success) throw new Error(r.message||'Login gagal');
-    loginPass.value=''; login.classList.add('hidden'); app.classList.remove('hidden');
-    who.textContent=r.username+' • '+r.role;
-    await Promise.all([loadStats(),loadUsers()]);
-  }catch(e){msg(e.message)}
+
+    const username = $('loginUser').value.trim();
+
+    const password = $('loginPass').value;
+
+    const apiKey = $('loginApiKey').value.trim();
+
+
+    if(!username){
+
+        setLoginMessage(
+            'Username/email wajib diisi.',
+            false
+        );
+
+        return;
+
+    }
+
+
+    if(!password){
+
+        setLoginMessage(
+            'Password wajib diisi.',
+            false
+        );
+
+        return;
+
+    }
+
+
+    if(!apiKey){
+
+        setLoginMessage(
+            'API Key wajib diisi.',
+            false
+        );
+
+        return;
+
+    }
+
+
+    adminApiKey = apiKey;
+
+    const button = $('loginButton');
+
+    button.disabled = true;
+
+    button.textContent = 'Login...';
+
+
+    try{
+
+        const result = await request(
+            'login',
+            {
+                username,
+                password
+            }
+        );
+
+
+        if(!result.success){
+
+            throw new Error(
+                result.message ||
+                'Login gagal'
+            );
+
+        }
+
+
+        $('loginPass').value = '';
+
+        /*
+         * API key tetap hanya berada di memory.
+         */
+        $('loginApiKey').value = '';
+
+        $('loginPanel').classList.add('hidden');
+
+        $('appPanel').classList.remove('hidden');
+
+
+        $('who').textContent =
+            result.username +
+            ' • ' +
+            result.role;
+
+
+        await refreshAll();
+
+
+    }catch(error){
+
+        adminApiKey = '';
+
+        setLoginMessage(
+            error.message ||
+            'Login gagal.',
+            false
+        );
+
+    }finally{
+
+        button.disabled = false;
+
+        button.textContent = 'Login';
+
+    }
+
 }
-async function logout(){try{await request('logout');location.reload()}catch(e){alert(e.message)}}
-async function loadStats(){try{const r=await request('stats');total.textContent=r.stats.total;banned.textContent=r.stats.banned;accessBanned.textContent=r.stats.accessBanned;forced.textContent=r.stats.forced}catch(e){console.error(e)}}
-async function loadUsers(){try{const r=await request('users');usersCache=r.users||[];renderUsers()}catch(e){alert(e.message)}}
-function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+async function logout(){
+
+    try{
+
+        await request('logout');
+
+    }catch(error){
+
+        console.error(error);
+
+    }
+
+
+    /*
+     * Hapus API key dari memory.
+     */
+    adminApiKey = '';
+
+    clientKeys = null;
+
+    serverKey = null;
+
+    location.reload();
+
+}
+
+
+/* =========================
+   MESSAGE
+========================= */
+
+function setLoginMessage(text,success){
+
+    const el = $('loginMsg');
+
+    el.textContent = text;
+
+    el.className =
+        success ? 'ok' : 'err';
+
+}
+
+
+/* =========================
+   REFRESH
+========================= */
+
+async function refreshAll(){
+
+    await Promise.all([
+        loadStats(),
+        loadUsers()
+    ]);
+
+}
+
+
+/* =========================
+   STATS
+========================= */
+
+async function loadStats(){
+
+    try{
+
+        const result =
+            await request('stats');
+
+
+        const stats =
+            result.stats || {};
+
+
+        $('total').textContent =
+            Number(stats.total || 0);
+
+
+        $('banned').textContent =
+            Number(stats.banned || 0);
+
+
+        $('accessBanned').textContent =
+            Number(stats.accessBanned || 0);
+
+
+        $('forced').textContent =
+            Number(stats.forced || 0);
+
+
+    }catch(error){
+
+        console.error(
+            'Stats:',
+            error
+        );
+
+    }
+
+}
+
+
+/* =========================
+   USERS
+========================= */
+
+async function loadUsers(){
+
+    const result =
+        await request('users');
+
+
+    usersCache =
+        Array.isArray(result.users)
+            ? result.users
+            : [];
+
+
+    renderUsers();
+
+}
+
+
+function escapeHTML(value){
+
+    return String(value ?? '')
+        .replace(/[&<>"']/g,m => ({
+
+            '&':'&amp;',
+            '<':'&lt;',
+            '>':'&gt;',
+            '"':'&quot;',
+            "'":'&#39;'
+
+        }[m]));
+
+}
+
+
 function renderUsers(){
- const q=search.value.toLowerCase();
- const rows=usersCache.filter(u=>(u.username+' '+u.email).toLowerCase().includes(q));
- users.innerHTML=rows.map(u=>{
-  const status=[u.banned?'BANNED':'',u.accessBanned?'BAN AKSES':'',u.forceLogout?'FORCE':'' ].filter(Boolean).join(' ')||'AKTIF';
-  return `<tr><td><b>${esc(u.username)}</b><br><span class="muted">${esc(u.email)}</span></td><td>${esc(u.role)}</td><td><span class="pill">${esc(status)}</span></td><td><div class="actions">
-  <button onclick="doUser('banned','${esc(u.username)}')">Ban</button><button onclick="doUser('unbanned','${esc(u.username)}')">Unban</button>
-  <button onclick="doUser('ban-akses','${esc(u.username)}')">Ban Akses</button><button onclick="doUser('unban-akses','${esc(u.username)}')">Unban Akses</button>
-  <button onclick="doUser('force','${esc(u.username)}')">Force</button><button onclick="doUser('unforce','${esc(u.username)}')">Unforce</button>
-  <button class="danger" onclick="doUser('delete-user','${esc(u.username)}')">Hapus</button>
-  </div></td></tr>`;
- }).join('');
+
+    const query =
+        $('search')
+            .value
+            .trim()
+            .toLowerCase();
+
+
+    const rows =
+        usersCache.filter(user => {
+
+            const text =
+                String(
+                    user.username || ''
+                ) +
+                ' ' +
+                String(
+                    user.email || ''
+                );
+
+            return text
+                .toLowerCase()
+                .includes(query);
+
+        });
+
+
+    $('users').innerHTML =
+        rows.map(user => {
+
+            const username =
+                escapeHTML(
+                    user.username
+                );
+
+
+            const email =
+                escapeHTML(
+                    user.email
+                );
+
+
+            const role =
+                escapeHTML(
+                    user.role
+                );
+
+
+            const status = [
+
+                user.banned
+                    ? 'BANNED'
+                    : '',
+
+                user.accessBanned
+                    ? 'BAN AKSES'
+                    : '',
+
+                user.forceLogout
+                    ? 'FORCE'
+                    : ''
+
+            ]
+            .filter(Boolean)
+            .join(' ') || 'AKTIF';
+
+
+            const encodedUsername =
+                encodeURIComponent(
+                    user.username || ''
+                );
+
+
+            return `
+
+                <tr>
+
+                    <td>
+                        <b>${username}</b>
+                        <br>
+                        <span class="muted">
+                            ${email}
+                        </span>
+                    </td>
+
+                    <td>
+                        ${role}
+                    </td>
+
+                    <td>
+                        <span class="pill">
+                            ${escapeHTML(status)}
+                        </span>
+                    </td>
+
+                    <td>
+
+                        <div class="actions">
+
+                            <button
+                                onclick="doUser('banned',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Ban
+                            </button>
+
+                            <button
+                                class="green"
+                                onclick="doUser('unbanned',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Unban
+                            </button>
+
+                            <button
+                                onclick="doUser('ban-akses',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Ban Akses
+                            </button>
+
+                            <button
+                                class="green"
+                                onclick="doUser('unban-akses',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Unban Akses
+                            </button>
+
+                            <button
+                                onclick="doUser('force',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Force
+                            </button>
+
+                            <button
+                                class="green"
+                                onclick="doUser('unforce',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Unforce
+                            </button>
+
+                            <button
+                                class="danger"
+                                onclick="doUser('delete-user',decodeURIComponent('${encodedUsername}'))"
+                            >
+                                Hapus
+                            </button>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+            `;
+
+        })
+        .join('');
+
 }
-async function doUser(action,username){
- if(action==='delete-user'&&!confirm('Hapus '+username+'?'))return;
- try{const r=await request(action,{username});alert(r.message||'Berhasil');await loadStats();await loadUsers()}catch(e){alert(e.message)}
+
+
+/* =========================
+   USER ACTION
+========================= */
+
+async function doUser(
+    action,
+    username
+){
+
+    if(action === 'delete-user'){
+
+        if(!confirm(
+            'Hapus user ' +
+            username +
+            '?'
+        )){
+            return;
+        }
+
+    }
+
+
+    try{
+
+        const result =
+            await request(
+                action,
+                {
+                    username
+                }
+            );
+
+
+        if(!result.success){
+
+            throw new Error(
+                result.message ||
+                'Aksi gagal'
+            );
+
+        }
+
+
+        alert(
+            result.message ||
+            'Berhasil'
+        );
+
+
+        await refreshAll();
+
+
+    }catch(error){
+
+        alert(
+            error.message ||
+            'Aksi gagal'
+        );
+
+    }
+
 }
+
+
+/* =========================
+   ADD USER
+========================= */
+
 async function addUser(){
- try{
-  const r=await request('add-user',{username:newUser.value,email:newEmail.value,password:newPass.value,role:newRole.value});
-  if(!r.success)throw new Error(r.message);
-  alert(r.message);newUser.value=newEmail.value=newPass.value='';await loadStats();await loadUsers();
- }catch(e){alert(e.message)}
+
+    const username =
+        $('newUser')
+            .value
+            .trim();
+
+
+    const email =
+        $('newEmail')
+            .value
+            .trim();
+
+
+    const password =
+        $('newPass')
+            .value;
+
+
+    const role =
+        $('newRole')
+            .value;
+
+
+    if(!username){
+
+        alert(
+            'Username wajib diisi.'
+        );
+
+        return;
+
+    }
+
+
+    if(password.length < 6){
+
+        alert(
+            'Password minimal 6 karakter.'
+        );
+
+        return;
+
+    }
+
+
+    try{
+
+        const result =
+            await request(
+                'add-user',
+                {
+                    username,
+                    email,
+                    password,
+                    role
+                }
+            );
+
+
+        if(!result.success){
+
+            throw new Error(
+                result.message ||
+                'Gagal menambahkan user'
+            );
+
+        }
+
+
+        alert(
+            result.message ||
+            'User berhasil ditambahkan.'
+        );
+
+
+        $('newUser').value = '';
+
+        $('newEmail').value = '';
+
+        $('newPass').value = '';
+
+
+        await refreshAll();
+
+
+    }catch(error){
+
+        alert(
+            error.message ||
+            'Gagal menambahkan user'
+        );
+
+    }
+
 }
+
+
+/* =========================
+   MAINTENANCE
+========================= */
+
 async function setMaintenance(){
- try{
-  const r=await request('maintenance',{enabled:maintEnabled.value==='true',title:maintTitle.value,message:maintMessage.value,until:maintUntil.value});
-  alert(r.message||'Maintenance disimpan');
- }catch(e){alert(e.message)}
+
+    try{
+
+        const result =
+            await request(
+                'maintenance',
+                {
+                    enabled:
+                        $('maintEnabled')
+                            .value === 'true',
+
+                    title:
+                        $('maintTitle')
+                            .value,
+
+                    message:
+                        $('maintMessage')
+                            .value,
+
+                    until:
+                        $('maintUntil')
+                            .value
+                }
+            );
+
+
+        if(!result.success){
+
+            throw new Error(
+                result.message ||
+                'Gagal menyimpan maintenance'
+            );
+
+        }
+
+
+        alert(
+            result.message ||
+            'Maintenance disimpan.'
+        );
+
+
+    }catch(error){
+
+        alert(
+            error.message ||
+            'Gagal menyimpan maintenance'
+        );
+
+    }
+
 }
+
+
+/* =========================
+   LOGS
+========================= */
+
 async function loadLogs(){
- try{
-  const r=await request('logs',{limit:200});
-  logs.innerHTML=(r.logs||[]).map(x=>`<tr><td>${new Date(Number(x.timestamp||0)).toLocaleString()}</td><td>${esc(x.username)}</td><td>${esc(x.action)}</td><td>${esc(x.ip)}</td><td>${esc(x.fingerprint)}</td><td>${esc(x.details||x.message)}</td></tr>`).join('');
- }catch(e){alert(e.message)}
+
+    try{
+
+        const result =
+            await request(
+                'logs',
+                {
+                    limit:200
+                }
+            );
+
+
+        const list =
+            Array.isArray(result.logs)
+                ? result.logs
+                : [];
+
+
+        $('logs').innerHTML =
+            list.map(item => {
+
+                const timestamp =
+                    Number(
+                        item.timestamp || 0
+                    );
+
+
+                const date =
+                    timestamp
+                        ? new Date(timestamp)
+                            .toLocaleString('id-ID')
+                        : '-';
+
+
+                return `
+
+                    <tr>
+
+                        <td>
+                            ${escapeHTML(date)}
+                        </td>
+
+                        <td>
+                            ${escapeHTML(item.username)}
+                        </td>
+
+                        <td>
+                            ${escapeHTML(item.action)}
+                        </td>
+
+                        <td>
+                            ${escapeHTML(item.ip)}
+                        </td>
+
+                        <td>
+                            ${escapeHTML(item.fingerprint)}
+                        </td>
+
+                        <td>
+                            ${escapeHTML(
+                                item.details ||
+                                item.message ||
+                                ''
+                            )}
+                        </td>
+
+                    </tr>
+
+                `;
+
+            })
+            .join('');
+
+
+    }catch(error){
+
+        alert(
+            error.message ||
+            'Gagal mengambil logs'
+        );
+
+    }
+
 }
-initCrypto().catch(e=>console.error(e));
+
+
+/* =========================
+   INIT
+========================= */
+
+(async function(){
+
+    try{
+
+        await initCrypto();
+
+    }catch(error){
+
+        console.error(
+            'Crypto init:',
+            error
+        );
+
+    }
+
+})();
+
+
+/* Enter = login */
+
+$('loginPass').addEventListener(
+    'keydown',
+    event => {
+
+        if(event.key === 'Enter'){
+            login();
+        }
+
+    }
+);
+
+
+$('loginApiKey').addEventListener(
+    'keydown',
+    event => {
+
+        if(event.key === 'Enter'){
+            login();
+        }
+
+    }
+);
+
 </script>
+
 </body>
 </html>
