@@ -1,15 +1,67 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "server.js",
-      "use": "@vercel/node"
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/pages/login",
+      "destination": "/pages/login.html"
+    },
+    {
+      "source": "/pages/dashboard",
+      "destination": "/pages/dashboard.html"
+    },
+    {
+      "source": "/pages/register",
+      "destination": "/pages/register.html"
+    },
+    {
+      "source": "/pages/reset-password",
+      "destination": "/pages/reset-password.html"
+    },
+    {
+      "source": "/pages/confirm-password",
+      "destination": "/pages/confirm-password.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/admin/",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/admin/register",
+      "destination": "/admin-register.html"
+    },
+    {
+      "source": "/admin/register/",
+      "destination": "/admin-register.html"
     }
   ],
-  "routes": [
+  "headers": [
     {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
     }
   ]
 }
