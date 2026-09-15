@@ -1,170 +1,68 @@
 const API='/api/admin';
-let serverKey=null, clientKeys=null, usersCache=[], logsCache=[], suspiciousCache=[];
-
+let serverKey=null,clientKeys=null,usersCache=[],currentAdmin=null,cryptoReady=false;
 const b64=a=>btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-const unb64=s=>{s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0));};
+const unb64=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0));};
 const $=id=>document.getElementById(id);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const fmt=t=>t?new Date(Number(t)).toLocaleString('id-ID',{dateStyle:'short',timeStyle:'medium'}):'-';
-
-function toast(text,ok=true){
-  const el=$('toast');el.textContent=text;el.className='toast '+(ok?'ok':'err');
-  clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.add('hidden'),3200);
-}
-function setLoginMsg(t){$('loginMsg').textContent=t||'';}
-
-async function initCrypto(){
-  const r=await fetch(API+'?action=key',{cache:'no-store',credentials:'include'});
-  if(!r.ok) throw new Error('Public key server gagal diambil');
-  const j=await r.json();
-  serverKey=await crypto.subtle.importKey('jwk',j.publicKey,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
-  clientKeys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['encrypt','decrypt']);
-}
-function fingerprint(){
-  const s=[navigator.userAgent,navigator.language,screen.width+'x'+screen.height,screen.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone].join('|');
-  let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16);
-}
-async function request(action,payload={}){
-  if(!clientKeys) await initCrypto();
-  const aes=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const plain=new TextEncoder().encode(JSON.stringify(payload));
-  const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},aes,plain);
-  const rawKey=await crypto.subtle.exportKey('raw',aes);
-  const wrapped=await crypto.subtle.encrypt({name:'RSA-OAEP'},serverKey,rawKey);
-  const jwk=await crypto.subtle.exportKey('jwk',clientKeys.publicKey);
-  const bytes=new Uint8Array(encrypted),tag=bytes.slice(-16),data=bytes.slice(0,-16);
-  const envelope={v:1,alg:'RSA-OAEP-256/AES-256-GCM',key:b64(wrapped),iv:b64(iv),tag:b64(tag),data:b64(data)};
-  const r=await fetch(API+'?action='+encodeURIComponent(action),{
-    method:'POST',credentials:'include',
-    headers:{'Content-Type':'application/json','X-Fingerprint':fingerprint()},
-    body:JSON.stringify({envelope,clientPublicKey:jwk})
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function toast(title,text='',icon='success'){return window.Swal?Swal.fire({icon,title,text,confirmButtonColor:'#00BFFF'}):alert(title+(text?'\n'+text:''));}
+async function confirmBox(text){if(window.Swal){const r=await Swal.fire({icon:'warning',title:'Konfirmasi',text,showCancelButton:true,confirmButtonText:'Ya',cancelButtonText:'Batal',confirmButtonColor:'#00BFFF',cancelButtonColor:'#64748b'});return r.isConfirmed}return confirm(text)}
+function showLogin(show=true){$('loginWrapper').classList.toggle('hidden',!show);$('appContainer').classList.toggle('hidden',show)}
+function setLoginMsg(t,ok=false){$('loginMsg').textContent=t||'';$('loginMsg').style.color=ok?'#16a34a':'#64748b'}
+function fingerprint(){const s=navigator.userAgent+'|'+screen.width+'x'+screen.height+'|'+screen.colorDepth+'|'+navigator.platform+'|'+navigator.hardwareConcurrency;let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return 'adminfp-'+(h>>>0).toString(16)+'-'+btoa(s).slice(0,18)}
+async function initCrypto(){if(cryptoReady)return;const r=await fetch(API+'?action=key',{cache:'no-store',credentials:'include'});if(!r.ok)throw new Error('Public key admin gagal diambil.');const j=await r.json();if(!j.publicKey)throw new Error('Public key admin tidak tersedia.');serverKey=await crypto.subtle.importKey('jwk',j.publicKey,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);clientKeys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['encrypt','decrypt']);cryptoReady=true}
+async function request(action,payload={}){await initCrypto();const aes=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);const iv=crypto.getRandomValues(new Uint8Array(12));const enc=await crypto.subtle.encrypt({name:'AES-GCM',iv},aes,new TextEncoder().encode(JSON.stringify(payload)));const rawKey=await crypto.subtle.exportKey('raw',aes);const wrapped=await crypto.subtle.encrypt({name:'RSA-OAEP'},serverKey,rawKey);const jwk=await crypto.subtle.exportKey('jwk',clientKeys.publicKey);const bytes=new Uint8Array(enc),tag=bytes.slice(-16),data=bytes.slice(0,-16);const envelope={v:1,alg:'RSA-OAEP-256/AES-256-GCM',key:b64(wrapped),iv:b64(iv),tag:b64(tag),data:b64(data)};const r=await fetch(API+'?action='+encodeURIComponent(action),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Fingerprint':fingerprint()},body:JSON.stringify({envelope,clientPublicKey:jwk})});let raw;try{raw=await r.json()}catch{throw new Error('Response server tidak valid.')};if(!raw.encrypted)throw new Error(raw.message||raw.error||'Response server tidak valid.');let out;try{const aesRaw=await crypto.subtle.decrypt({name:'RSA-OAEP'},clientKeys.privateKey,unb64(raw.data.key));const responseKey=await crypto.subtle.importKey('raw',aesRaw,{name:'AES-GCM'},false,['decrypt']);const all=new Uint8Array([...unb64(raw.data.data),...unb64(raw.data.tag)]);const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(raw.data.iv)},responseKey,all);out=JSON.parse(new TextDecoder().decode(plain))}catch{throw new Error('Response terenkripsi tidak dapat dibuka.')};if(!r.ok)throw new Error(out.message||'Request gagal.');return out}
+async function loadRecaptcha(){
+  const wait=()=>new Promise((resolve,reject)=>{
+    const started=Date.now();
+    const check=()=>{
+      if(window.grecaptcha?.getResponse) return resolve();
+      if(Date.now()-started>15000) return reject(new Error('reCAPTCHA gagal dimuat. Coba refresh halaman.'));
+      setTimeout(check,100);
+    };
+    check();
   });
-  let raw;try{raw=await r.json()}catch{throw new Error('Response server tidak valid')}
-  if(!raw.encrypted){if(!r.ok)throw new Error(raw.message||raw.error||'Request gagal');return raw}
-  try{
-    const aesRaw=await crypto.subtle.decrypt({name:'RSA-OAEP'},clientKeys.privateKey,unb64(raw.data.key));
-    const aesKey=await crypto.subtle.importKey('raw',aesRaw,{name:'AES-GCM'},false,['decrypt']);
-    const all=new Uint8Array([...unb64(raw.data.data),...unb64(raw.data.tag)]);
-    const dec=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(raw.data.iv)},aesKey,all);
-    const out=JSON.parse(new TextDecoder().decode(dec));
-    if(!r.ok)throw new Error(out.message||'Request gagal');
-    return out;
-  }catch(e){if(e.message&&/gagal|valid|sesi|admin/i.test(e.message))throw e;throw new Error('Gagal membuka response server')}
+  return wait();
 }
-
-async function login(){
-  const btn=$('loginBtn');btn.disabled=true;setLoginMsg('Memproses...');
-  try{
-    const r=await request('login',{username:$('loginUser').value.trim(),password:$('loginPass').value});
-    if(!r.success)throw new Error(r.message||'Login gagal');
-    $('loginPass').value='';$('loginPage').classList.add('hidden');$('app').classList.remove('hidden');
-    $('who').textContent=`${r.username} • ${r.role}`;
-    await loadAll();
-  }catch(e){setLoginMsg(e.message);toast(e.message,false)}
-  finally{btn.disabled=false}
-}
-async function logout(){try{await request('logout');location.reload()}catch(e){toast(e.message,false)}}
-async function loadAll(){
-  await Promise.allSettled([loadStats(),loadUsers(),loadLogs(),loadSuspicious(),loadMaintenance()]);
-  renderDerived(); 
-}
-async function loadStats(){
-  const r=await request('stats');$('total').textContent=r.stats.total;$('banned').textContent=r.stats.banned;$('accessBanned').textContent=r.stats.accessBanned;$('forced').textContent=r.stats.forced;$('maintenanceStat').textContent=r.stats.maintenance?'ON':'OFF';
-  $('adminStat').textContent=$('who').textContent.split('•')[0].trim()||'-';
-}
-async function loadUsers(){const r=await request('users');usersCache=r.users||[];renderUsers();renderDerived()}
-function actionBtn(action,u,cls='gray'){return `<button class="btn small ${cls}" data-act="${esc(action)}" data-user="${esc(u.username)}">${esc(action)}</button>`}
-function userTable(list){
- if(!list.length)return '<div class="empty">Tidak ada data.</div>';
- return `<table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Reset</th><th>Aksi</th></tr></thead><tbody>${list.map(u=>{
-  const badges=[];
-  if(u.banned)badges.push('<span class="badge danger">BANNED</span>');
-  if(u.accessBanned)badges.push('<span class="badge warn">BAN AKSES</span>');
-  if(u.forceLogout)badges.push('<span class="badge danger">FORCE</span>');
-  if(!badges.length)badges.push('<span class="badge ok">AKTIF</span>');
-  return `<tr><td><b>${esc(u.username)}</b><br><span class="muted">${esc(u.email)}</span></td><td>${esc(u.role)}</td><td>${badges.join(' ')}</td><td>${esc(u.resetCount)}</td><td><div class="actions">${actionBtn(u.banned?'unbanned':'banned',u,u.banned?'ok':'danger')}${actionBtn(u.accessBanned?'unban-akses':'ban-akses',u,u.accessBanned?'ok':'warn')}${actionBtn(u.forceLogout?'unforce':'force',u,u.forceLogout?'ok':'gray')}<button class="btn small gray" data-act="edit" data-user="${esc(u.username)}">Edit</button><button class="btn small danger" data-act="delete-user" data-user="${esc(u.username)}">Hapus</button></div></td></tr>`;
- }).join('')}</tbody></table>`;
-}
-function renderUsers(){
- const q=($('search').value||'').toLowerCase();
- const rows=usersCache.filter(u=>(`${u.username} ${u.email} ${u.role}`).toLowerCase().includes(q));
- $('userCount').textContent=`${rows.length} dari ${usersCache.length} user`;$('usersTable').innerHTML=userTable(rows);
-}
-function renderFiltered(id,list){$(id).innerHTML=userTable(list)}
-function renderDerived(){
- const pending=usersCache.filter(u=>u.needsActivation||u.activationStatus==='pending'||u.status==='pending');
- renderActivation(pending);
- renderFiltered('bannedTable',usersCache.filter(u=>u.banned));
- renderFiltered('accessTable',usersCache.filter(u=>u.accessBanned));
- renderFiltered('forceTable',usersCache.filter(u=>u.forceLogout));
- renderFiltered('problemTable',usersCache.filter(u=>u.banned||u.accessBanned||u.forceLogout||Number(u.resetCount)>3));
-}
-function renderActivation(list){
- if(!list.length){$('activationTable').innerHTML='<div class=\"empty\">Tidak ada user yang menunggu aktivasi.</div>';return}
- $('activationTable').innerHTML=`<table><thead><tr><th>User</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${list.map(u=>`<tr><td><b>${esc(u.username)}</b><br><span class=\"muted\">${esc(u.email)}</span></td><td><span class=\"badge warn\">${esc(u.activationStatus||u.status||'pending')}</span></td><td><button class=\"btn small ok\" data-act=\"activate\" data-user=\"${esc(u.username)}\">Aktifkan</button></td></tr>`).join('')}</tbody></table>`;
-}
-function logsTable(list){
- if(!list.length)return '<div class="empty">Belum ada log.</div>';
- return `<table><thead><tr><th>Waktu</th><th>User</th><th>Action</th><th>IP</th><th>Fingerprint</th><th>Detail</th></tr></thead><tbody>${list.map(x=>`<tr><td>${esc(fmt(x.timestamp))}</td><td>${esc(x.username||'-')}</td><td><span class="badge">${esc(x.action||'-')}</span></td><td>${esc(x.ip||'-')}</td><td>${esc(x.fingerprint||'-')}</td><td>${esc(x.details||x.message||'-')}</td></tr>`).join('')}</tbody></table>`;
-}
-async function loadLogs(){
- try{const r=await request('logs',{limit:300});logsCache=r.logs||[];$('logsTable').innerHTML=logsTable(logsCache);$('dashboardLogs').innerHTML=logsTable(logsCache.slice(0,10));$('logCount').textContent=logsCache.length;renderDerived()}catch(e){console.error(e)}
-}
-async function loadSuspicious(){
- try{const r=await request('suspicious-logs',{limit:500});suspiciousCache=r.logs||[];$('suspiciousTable').innerHTML=logsTable(suspiciousCache);$('suspiciousCount').textContent=suspiciousCache.length}catch(e){console.error(e)}
-}
-async function loadMaintenance(){
- try{const r=await request('maintenance-status');const m=r.maintenance||{};$('maintEnabled').value=m.maintenance?'true':'false';$('maintTitle').value=m.title||'SEDANG PERBAIKAN SISTEM';$('maintMessage').value=m.message||'';$('maintUntil').value=m.until||'';$('maintState').textContent=m.maintenance?'ON':'OFF';$('maintState').className='badge '+(m.maintenance?'warn':'ok');$('maintenanceStat').textContent=m.maintenance?'ON':'OFF'}catch(e){console.error(e)}
-}
-async function doUser(action,username){
- if(action==='delete-user'&&!confirm(`Hapus user ${username}?`))return;
- try{const r=await request(action,{username});toast(r.message||'Berhasil');await Promise.all([loadStats(),loadUsers(),loadLogs(),loadSuspicious()])}catch(e){toast(e.message,false)}
-}
-async function activateUser(username){
- try{const r=await request('edit-user',{username,needsActivation:false,activationStatus:'active',status:'active',isActive:true});toast(r.message||'User diaktifkan');await Promise.all([loadUsers(),loadStats(),loadLogs()])}catch(e){toast(e.message,false)}
-}
-async function editUser(username){
- const u=usersCache.find(x=>x.username===username);if(!u)return;
- const email=prompt('Email user:',u.email||'');if(email===null)return;
- const role=prompt('Role (User/Admin):',u.role||'User');if(role===null)return;
- const password=prompt('Password baru (kosongkan jika tidak diganti):','');if(password===null)return;
- try{const r=await request('edit-user',{username,email,role,password});toast(r.message||'Data diubah');await Promise.all([loadUsers(),loadLogs()])}catch(e){toast(e.message,false)}
-}
-async function addUser(){
- try{
-  const p={username:$('newUser').value.trim(),email:$('newEmail').value.trim(),password:$('newPass').value,role:$('newRole').value};
-  const r=await request('add-user',p);if(!r.success)throw new Error(r.message);toast(r.message||'User ditambahkan');$('newUser').value=$('newEmail').value=$('newPass').value='';$('addBox').classList.add('hidden');await Promise.all([loadStats(),loadUsers(),loadLogs()])
- }catch(e){toast(e.message,false)}
-}
-async function setMaintenance(){
- try{const r=await request('maintenance',{enabled:$('maintEnabled').value==='true',title:$('maintTitle').value,message:$('maintMessage').value,until:$('maintUntil').value});toast(r.message||'Maintenance disimpan');await Promise.all([loadStats(),loadMaintenance(),loadLogs()])}catch(e){toast(e.message,false)}
-}
-async function migrate(action){
- const label=action==='migrate-passwords'?'Migrasi password':'Migrasi format data';
- if(!confirm(`Jalankan ${label}?`))return;
- try{const r=await request(action);const x=r.result||{};$('migrationResult').textContent=`${r.message} Scan: ${x.scanned||0}, diubah: ${x.changed||0}, dilewati: ${x.skipped||0}.`;toast(r.message||'Migrasi selesai');await Promise.all([loadUsers(),loadLogs()])}catch(e){toast(e.message,false)}
-}
-async function saveEmail(){
- const email=$('adminEmail').value.trim();if(!email)return toast('Email wajib diisi',false);
- try{const r=await request('change-email',{email});toast(r.message||'Email berhasil diubah');$('adminEmail').value=email;await loadLogs()}catch(e){toast(e.message,false)}
-}
-async function savePassword(){
- const p=$('adminPassword').value,p2=$('adminPassword2').value;
- if(p.length<8)return toast('Password minimal 8 karakter',false);if(p!==p2)return toast('Konfirmasi password tidak sama',false);
- try{const r=await request('change-password',{password:p});toast(r.message||'Password berhasil diubah');setTimeout(()=>location.reload(),900)}catch(e){toast(e.message,false)}
-}
-function setup(){
- $('loginBtn').onclick=login;$('logoutBtn').onclick=logout;$('refreshBtn').onclick=loadAll;
- $('search').oninput=renderUsers;$('showAddBtn').onclick=()=>$('addBox').classList.toggle('hidden');$('addUserBtn').onclick=addUser;
- $('saveMaintBtn').onclick=setMaintenance;$('loadLogsBtn').onclick=loadLogs;$('loadSuspiciousBtn').onclick=loadSuspicious;
- $('migratePassBtn').onclick=()=>migrate('migrate-passwords');$('migrateFormatBtn').onclick=()=>migrate('migrate_users_format');
- $('saveEmailBtn').onclick=saveEmail;$('savePasswordBtn').onclick=savePassword;$('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
- $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
- document.addEventListener('click',e=>{
-  const nav=e.target.closest('[data-target]');if(nav){document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(nav.classList.contains('nav'))nav.classList.add('active');const target=$(nav.dataset.target);if(target)target.scrollIntoView({behavior:'smooth'});$('sidebar').classList.remove('open');}
-  const act=e.target.closest('[data-act]');if(act){const a=act.dataset.act,u=act.dataset.user;if(a==='edit')editUser(u);else if(a==='activate')activateUser(u);else doUser(a,u)}
- });
-}
-(async()=>{setup();try{await initCrypto();const r=await request('me');if(r.success){$('loginPage').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=`${r.admin.username} • ${r.admin.role}`;$('adminEmail').value=r.admin.email||'';await loadAll()}}catch{}})();
-setInterval(async()=>{if($('app').classList.contains('hidden'))return;try{const r=await request('me');if(!r.success)location.reload()}catch{}},60000);
+async function login(){try{setLoginMsg('Memproses login...');$('btnLogin').disabled=true;const username=$('loginEmail').value.trim(),password=$('loginPassword').value;if(!username||!password)throw new Error('Email/username dan password wajib diisi.');await loadRecaptcha();const captchaToken=window.grecaptcha.getResponse();if(!captchaToken)throw new Error('Centang reCAPTCHA terlebih dahulu.');const r=await request('login',{username,password,captchaToken});if(!r.success)throw new Error(r.message||'Login gagal.');currentAdmin={username:r.username,role:r.role};$('loginPassword').value='';setLoginMsg('Login berhasil.',true);showLogin(false);$('navbarUserName').textContent=r.username;await toast('Login berhasil','Selamat datang, '+r.username,'success');await loadDashboard();routeFromHash()}catch(e){setLoginMsg(e.message);await toast('Login gagal',e.message,'error');try{if(window.grecaptcha)window.grecaptcha.reset()}catch{} }finally{$('btnLogin').disabled=false}}
+async function logout(){if(!await confirmBox('Yakin ingin logout dari Panel Admin?'))return;try{await request('logout');await toast('Logout berhasil','Sesi admin telah diakhiri.','success')}catch(e){await toast('Logout gagal',e.message,'error')}finally{location.reload()}}
+function toggleSidebar(){$('sidebar').classList.toggle('open');$('drawerBackdrop').classList.toggle('open')}
+function closeSidebar(){$('sidebar').classList.remove('open');$('drawerBackdrop').classList.remove('open')}
+function switchPage(page,updateHash=true){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.sidebar-nav a[data-page]').forEach(x=>x.classList.remove('active'));const target=$('page-'+page);if(!target)return;target.classList.add('active');document.querySelector(`[data-page="${page}"]`)?.classList.add('active');closeSidebar();if(updateHash){history.replaceState(null,'','#'+page)}const f={dashboard:loadDashboard,'all-users':loadUsers,'aktivasi-user':loadActivations,'unbanned-users':loadBannedUsers,'banakses-users':loadBanAksesUsers,'force-users':loadForceUsers,'problem-users':loadProblemUsers,'activity-log':loadLogs,'suspicious-log':loadSuspicious,'web-stats':loadStats,maintenance:loadMaintenance,'migrate-password':()=>{},settings:loadSettings,'path-manager':()=>{}};f[page]?.()}
+function routeFromHash(){const p=location.hash.replace(/^#/,'')||'dashboard';switchPage($('page-'+p)?p:'dashboard',false)}
+function status(u){return u.banned?'BANNED':(u.accessBanned||u.banAkses)?'BAN AKSES':u.forceLogout?'FORCE LOGOUT':((u.status||'active').toUpperCase())}
+function badgeClass(u){return u.banned?'red':(u.accessBanned||u.banAkses||u.forceLogout)?'yellow':'green'}
+async function loadUsers(){try{const r=await request('users');usersCache=r.users||[];renderUsers();updateStats(usersCache)}catch(e){await toast('Gagal memuat user',e.message,'error')}}
+function renderUsers(){const q=($('userSearch')?.value||'').toLowerCase();const a=usersCache.filter(u=>(String(u.username||'')+' '+String(u.email||'')).toLowerCase().includes(q));$('allUsersCount').textContent=usersCache.length;$('allUsersList').innerHTML=a.length?a.map(u=>`<div class="user-card"><div class="avatar">${esc((u.username||'?')[0].toUpperCase())}</div><div class="user-main"><b>${esc(u.username||'-')}</b><span>${esc(u.email||'-')} · ${esc(u.role||'User')}</span><small>IP: ${esc((u.ipHistory||[]).slice(-1)[0]||'-')} · FP: ${esc((u.fpHistory||[]).slice(-1)[0]||'-')}</small></div><span class="badge ${badgeClass(u)}">${esc(status(u))}</span><div class="actions"><button class="btn sm light" onclick="editUser('${esc(u.username)}')">Edit</button><button class="btn sm danger" onclick="doUser('delete-user','${esc(u.username)}')">Hapus</button></div></div>`).join(''):'<div class="empty">Tidak ada user.</div>'}
+function updateStats(a){$('statTotal').textContent=a.length;$('statActive').textContent=a.filter(u=>u.status==='active'||u.isActive===true).length;$('statPending').textContent=a.filter(u=>u.status==='pending'||u.needsActivation===true).length;$('statBanned').textContent=a.filter(u=>u.banned===true).length}
+async function doUser(action,username){if(action==='delete-user'&&!await confirmBox('Hapus user '+username+'?'))return;try{const r=await request(action,{username});await toast(r.success?'Berhasil':'Gagal',r.message||'',r.success?'success':'error');if(r.success)await Promise.all([loadUsers(),loadLogs()])}catch(e){await toast('Gagal',e.message,'error')}}
+async function editUser(username){const u=usersCache.find(x=>x.username===username);if(!u)return;const r=await Swal.fire({title:'Edit User',html:`<input id="swalEmail" class="swal2-input" placeholder="Email" value="${esc(u.email||'')}"><select id="swalRole" class="swal2-select"><option value="User" ${u.role==='User'?'selected':''}>User</option><option value="Admin" ${u.role==='Admin'?'selected':''}>Admin</option></select><input id="swalPassword" class="swal2-input" type="password" placeholder="Password baru (opsional)">`,focusConfirm:false,showCancelButton:true,confirmButtonText:'Simpan',cancelButtonText:'Batal',confirmButtonColor:'#00BFFF',preConfirm:()=>({email:$('swalEmail').value.trim(),role:$('swalRole').value,password:$('swalPassword').value})});if(!r.isConfirmed)return;try{const x=await request('edit-user',{username,email:r.value.email,role:r.value.role,password:r.value.password});await toast(x.success?'Berhasil':'Gagal',x.message||'',x.success?'success':'error');if(x.success)await Promise.all([loadUsers(),loadLogs()])}catch(e){await toast('Gagal',e.message,'error')}}
+async function loadBannedUsers(){await loadUsers();const a=usersCache.filter(u=>u.banned);$('bannedUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>${u.bannedUntil?new Date(u.bannedUntil).toLocaleString('id-ID'):'Permanen'}</td><td><button class="btn sm success" onclick="doUser('unbanned','${esc(u.username)}')">Unban</button></td></tr>`).join('')||'<tr><td colspan="4">Tidak ada user banned.</td></tr>'}
+async function loadBanAksesUsers(){await loadUsers();const a=usersCache.filter(u=>u.accessBanned||u.banAkses);$('banaksesUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc((u.ipHistory||[]).slice(-1)[0]||'-')}</td><td>${esc((u.fpHistory||[]).slice(-1)[0]||'-')}</td><td><button class="btn sm success" onclick="doUser('unban-akses','${esc(u.username)}')">Unban</button></td></tr>`).join('')||'<tr><td colspan="4">Tidak ada.</td></tr>'}
+async function loadForceUsers(){await loadUsers();const a=usersCache.filter(u=>u.forceLogout);$('forceUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td><span class="badge yellow">FORCE LOGOUT</span></td><td><button class="btn sm success" onclick="doUser('unforce','${esc(u.username)}')">Lepas</button></td></tr>`).join('')||'<tr><td colspan="3">Tidak ada.</td></tr>'}
+async function loadProblemUsers(){await loadUsers();const a=usersCache.filter(u=>u.banned||u.accessBanned||u.banAkses||u.forceLogout);$('problemUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td><span class="badge ${badgeClass(u)}">${esc(status(u))}</span></td><td><button class="btn sm light" onclick="editUser('${esc(u.username)}')">Edit</button></td></tr>`).join('')||'<tr><td colspan="3">Tidak ada.</td></tr>'}
+async function loadActivations(){await loadUsers();const a=usersCache.filter(u=>u.status==='pending'||u.needsActivation);$('pendingActivationsList').innerHTML=a.map(u=>`<div class="user-card"><div class="avatar">${esc((u.username||'?')[0].toUpperCase())}</div><div class="user-main"><b>${esc(u.username)}</b><span>${esc(u.email||'-')}</span></div><span class="badge yellow">PENDING</span><button class="btn sm success" onclick="activateUser('${esc(u.username)}')">Aktifkan</button></div>`).join('')||'<div class="empty">Tidak ada pending activation.</div>'}
+async function activateUser(username){try{const r=await request('edit-user',{username,status:'active',isActive:true,needsActivation:false,activationStatus:'accepted'});await toast(r.success?'Berhasil':'Gagal',r.message||'',r.success?'success':'error');if(r.success)await Promise.all([loadUsers(),loadLogs()])}catch(e){await toast('Gagal',e.message,'error')}}
+function logHtml(x){return `<div class="log-item"><div class="log-time">${new Date(Number(x.timestamp||0)).toLocaleString('id-ID')}</div><div><div class="log-action">${esc(x.username||'System')} · ${esc(x.action||'-')}</div><div class="log-detail">${esc(x.details||x.message||'-')}</div></div><div class="log-meta">IP: ${esc(x.ip||'-')}<br>FP: ${esc(x.fingerprint||'-')}</div></div>`}
+async function loadLogs(){try{const r=await request('logs',{limit:100});const a=r.logs||[];$('allActivityLog').innerHTML=a.length?a.map(logHtml).join(''):'<div class="empty">Belum ada log aktivitas.</div>';$('dashboardLogs').innerHTML=a.slice(0,7).map(logHtml).join('')||'<div class="empty">Belum ada aktivitas.</div>';$('webStatTotalLogins').textContent=a.length}catch(e){await toast('Gagal memuat log',e.message,'error')}}
+async function loadSuspicious(){try{const r=await request('suspicious-logs');const a=r.logs||[];$('suspiciousActivityLog').innerHTML=a.length?a.map(logHtml).join(''):'<div class="empty">Tidak ada aktivitas mencurigakan.</div>'}catch(e){await toast('Gagal memuat aktivitas mencurigakan',e.message,'error')}}
+async function clearAllLogs(){if(!await confirmBox('Hapus seluruh Activity Log? Data aktivitas mencurigakan yang berasal dari log ini juga akan ikut terhapus.'))return;try{const r=await request('clear-logs');await toast(r.success?'Log berhasil dihapus':'Penghapusan gagal',r.message||'',r.success?'success':'error');if(r.success){await loadLogs();await loadSuspicious()}}catch(e){await toast('Gagal menghapus log',e.message,'error')}}
+async function loadStats(){try{const r=await request('stats');$('webStatMaintenance').textContent=r.stats?.maintenance?'ON':'OFF';$('webStatTotalLogins').textContent=(await request('logs',{limit:100})).logs?.length||0}catch(e){await toast('Gagal memuat statistik',e.message,'error')}}
+function toDatetimeLocal(v){if(!v)return '';const d=new Date(Number(v));if(Number.isNaN(d.getTime()))return '';const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
+function fromDatetimeLocal(v){if(!v)return 0;const t=new Date(v).getTime();return Number.isFinite(t)?t:0}
+function maintenanceHtml(title,message,until){const t=esc(title||'SEDANG PERBAIKAN SISTEM'),m=esc(message||'Website sedang dalam perbaikan oleh admin. Silakan kembali beberapa saat lagi.'),u=until?`Estimasi selesai: ${esc(new Date(Number(until)).toLocaleString('id-ID'))}`:'Mohon maaf atas ketidaknyamanan ini.';return `<div class="maintenance-preview-card"><div class="maintenance-icon"><i class="fa-solid fa-screwdriver-wrench"></i></div><h3>${t}</h3><p>${m}</p><div class="maintenance-until">${u}</div></div>`}
+function renderMaintenancePreview(){const title=$('maintenanceTitle').value.trim()||'SEDANG PERBAIKAN SISTEM',message=$('maintenanceMessage').value.trim()||'Website sedang dalam perbaikan oleh admin.',until=fromDatetimeLocal($('maintenanceUntil').value);$('maintenancePreview').innerHTML=maintenanceHtml(title,message,until)}
+async function loadMaintenance(){try{const r=await request('maintenance-status');$('maintenanceStatusBadge').innerHTML=r.maintenance?'<i class="fa-solid fa-circle"></i> ON':'<i class="fa-solid fa-circle"></i> OFF';$('maintenanceStatusBadge').className='badge '+(r.maintenance?'red':'green');$('maintenanceStatusText').textContent=r.maintenance?'Maintenance sedang aktif':'Maintenance nonaktif';$('maintenanceStatusDot').classList.toggle('on',!!r.maintenance);$('maintenanceTitle').value=r.title||'';$('maintenanceMessage').value=r.message||'';$('maintenanceUntil').value=toDatetimeLocal(r.until);$('maintenanceUpdated').textContent=r.updatedAt?'Diubah '+new Date(Number(r.updatedAt)).toLocaleString('id-ID'):'Belum ada perubahan.';renderMaintenancePreview()}catch(e){await toast('Gagal memuat maintenance',e.message,'error')}}
+async function previewMaintenance(){renderMaintenancePreview();await Swal.fire({title:'Preview Halaman Maintenance',html:maintenanceHtml($('maintenanceTitle').value.trim(),$('maintenanceMessage').value.trim(),fromDatetimeLocal($('maintenanceUntil').value)),width:520,confirmButtonText:'Tutup',confirmButtonColor:'#00BFFF'})}
+async function enableMaintenance(){try{const title=$('maintenanceTitle').value.trim(),message=$('maintenanceMessage').value.trim(),until=fromDatetimeLocal($('maintenanceUntil').value);if(!title||!message){await toast('Data belum lengkap','Judul dan pesan maintenance wajib diisi.','warning');return}const r=await request('maintenance',{enabled:true,title,message,until});await toast(r.success?'Maintenance aktif':'Gagal mengaktifkan maintenance',r.message||'',r.success?'success':'error');if(r.success)await Promise.all([loadMaintenance(),loadLogs(),loadStats()])}catch(e){await toast('Gagal mengaktifkan maintenance',e.message,'error')}}
+async function disableMaintenance(){if(!await confirmBox('Nonaktifkan maintenance sekarang?'))return;try{const r=await request('maintenance',{enabled:false,title:$('maintenanceTitle').value,message:$('maintenanceMessage').value,until:fromDatetimeLocal($('maintenanceUntil').value)});await toast(r.success?'Maintenance nonaktif':'Gagal menonaktifkan maintenance',r.message||'',r.success?'success':'error');if(r.success)await Promise.all([loadMaintenance(),loadLogs(),loadStats()])}catch(e){await toast('Gagal menonaktifkan maintenance',e.message,'error')}}
+async function startPasswordMigration(){if(!await confirmBox('Migrasikan password plaintext menjadi bcrypt dan hapus plaintext?'))return;const p=$('migrationProgress');p.classList.add('show');try{const x=await request('migrate-passwords');await toast('Migrasi selesai',`Berhasil: ${x.migrated||0} · Sudah hash: ${x.alreadyHashed||0} · Dilewati: ${x.skipped||0} · Gagal: ${x.failed||0}`,'success');await loadLogs()}catch(e){await toast('Migrasi gagal',e.message,'error')}finally{p.classList.remove('show')}}
+async function migrateUsersNewFormat(){if(!await confirmBox('Migrasikan semua user ke format encrypted v2?'))return;const p=$('migrationProgress');p.classList.add('show');try{const x=await request('migrate_users_format');await toast('Migrasi format selesai',`Berhasil: ${x.migrated||0} · Dilewati: ${x.skipped||0} · Gagal: ${x.failed||0}`,'success');await loadLogs()}catch(e){await toast('Migrasi gagal',e.message,'error')}finally{p.classList.remove('show')}}
+async function loadSettings(){try{const r=await request('auth');$('settingsEmail').value=r.email||r.username||''}catch(e){await toast('Gagal memuat settings',e.message,'error')}}
+async function changeEmail(){const email=$('settingsEmail').value.trim();try{const r=await request('change-email',{email});await toast(r.success?'Email berhasil diubah':'Gagal mengubah email',r.message||'',r.success?'success':'error');if(r.success)await loadLogs()}catch(e){await toast('Gagal',e.message,'error')}}
+async function changePassword(){const a=$('settingsPassword').value,b=$('settingsPasswordConfirm').value;if(a.length<8||a!==b){await toast('Password tidak valid','Minimal 8 karakter dan harus sama.','warning');return}try{const r=await request('change-password',{password:a});await toast(r.success?'Password berhasil diubah':'Gagal mengubah password',r.message||'',r.success?'success':'error');if(r.success){$('settingsPassword').value='';$('settingsPasswordConfirm').value='';await loadLogs()}}catch(e){await toast('Gagal',e.message,'error')}}
+async function loadDashboard(){await loadUsers();await loadLogs();$('navbarUserName').textContent=currentAdmin?.username||'Admin'}
+function updateClock(){$('clockDisplay').innerHTML='<i class="far fa-clock"></i> '+new Date().toLocaleTimeString('id-ID')}
+async function boot(){updateClock();setInterval(updateClock,1000);try{const r=await request('me');if(r.success){currentAdmin=r.admin;showLogin(false);$('navbarUserName').textContent=currentAdmin.username||'Admin';await loadDashboard();routeFromHash()}else{showLogin(true);loadRecaptcha().catch(()=>{})}}catch{showLogin(true);loadRecaptcha().catch(()=>{})}}
+setInterval(async()=>{if(!$('appContainer').classList.contains('hidden')){try{const r=await request('me');if(!r.success)location.reload()}catch{}}},60000);
+$('maintenanceTitle')?.addEventListener('input',renderMaintenancePreview);$('maintenanceMessage')?.addEventListener('input',renderMaintenancePreview);$('maintenanceUntil')?.addEventListener('input',renderMaintenancePreview);
+window.addEventListener('hashchange',routeFromHash);window.addEventListener('popstate',routeFromHash);document.addEventListener('DOMContentLoaded',boot);
