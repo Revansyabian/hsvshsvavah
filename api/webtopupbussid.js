@@ -443,6 +443,15 @@ async function handler(req, res) {
     else return res.status(400).json({error:'Permintaan tidak valid'});
 
     if (!path || typeof path !== 'string' || path.length > 200) return res.status(400).json({ error: 'Path tidak valid' });
+
+    // Audit trail: catat setiap action web-topup. Password/token tidak dicatat.
+    try {
+      const safeUser = data && typeof data === 'object'
+        ? String(data.username || data.email || operator || 'anonymous').slice(0, 100)
+        : String(operator || 'anonymous').slice(0, 100);
+      await logActivity(safeUser, `web:${path}`, `method=${method}`, ip, fp);
+    } catch (e) {}
+
     
     const ref = db.ref(path);
 
@@ -1857,45 +1866,31 @@ export default async function webtopupbussid(req,res) {
     if (result) return result;
   }
 
+  const directEnvelope=req.body?.envelope;
+  if (directEnvelope) {
+    const clientKey=req.headers['x-client-key'];
+    if (!clientKey) return res.status(400).json({error:'Client public key diperlukan'});
+    try {
+      req.body=decryptRequest(directEnvelope);
+    } catch {
+      return res.status(400).json({error:'Encrypted request tidak valid'});
+    }
+    const json=res.json.bind(res);
+    res.json=(body)=>json(encryptResponse(body,clientKey));
+  }
+
   const body=req.body||{};
-  const ip=unifiedIP(req), fp=unifiedFP(req);
-  // Catat setiap aksi endpoint webtopup tanpa pernah menyimpan password/token
-  // atau isi payload sensitif. Aksi spesifik yang sudah punya log tetap boleh
-  // menghasilkan log detail tambahan.
-  if (body.path) {
-    const actionName=`web:${String(body.path).slice(0,120)}`;
-    try {
-      const result=await revanstoreHandler(req,res);
-      await unifiedLog(String(body.username||body.email||body.operator||''), actionName, ip, fp,
-        `method=${String(body.method||'GET').slice(0,12)}`);
-      return result;
-    } catch (e) {
-      await unifiedLog(String(body.username||body.email||body.operator||''), `${actionName}:error`, ip, fp, 'Request gagal di server');
-      throw e;
-    }
+  const bodyAction=String(body.action||'').toLowerCase();
+
+  if (body.path) return revanstoreHandler(req,res);
+
+  if (bodyAction==='login' || bodyAction==='logout') {
+    req.body={...body,path:bodyAction,method:body.method||'POST',data:body.data||body};
+    return revanstoreHandler(req,res);
   }
-  if (body.action && looksLikeReset(body.action)) {
-    const actionName=`web:${String(body.action).slice(0,80)}`;
-    try {
-      const result=await resetHandler(req,res);
-      await unifiedLog(String(body.username||body.email||''), actionName, ip, fp, 'Aksi reset password');
-      return result;
-    } catch (e) {
-      await unifiedLog(String(body.username||body.email||''), `${actionName}:error`, ip, fp, 'Request gagal di server');
-      throw e;
-    }
-  }
-  if (body.action) {
-    const actionName=`web:${String(body.action).slice(0,80)}`;
-    try {
-      const result=await registerHandler(req,res);
-      await unifiedLog(String(body.username||body.email||''), actionName, ip, fp, 'Aksi webtopup');
-      return result;
-    } catch (e) {
-      await unifiedLog(String(body.username||body.email||''), `${actionName}:error`, ip, fp, 'Request gagal di server');
-      throw e;
-    }
-  }
-  await unifiedLog('', 'web:invalid_request', ip, fp, 'Permintaan tidak valid');
+
+  if (looksLikeReset(bodyAction)) return resetHandler(req,res);
+  if (bodyAction) return registerHandler(req,res);
+
   return res.status(400).json({error:'Permintaan tidak valid'});
 }

@@ -1,14 +1,9 @@
 const API='/api/admin';
 let serverKey=null,clientKeys=null,usersCache=[],currentAdmin=null,cryptoReady=false;
-<<<<<<< HEAD
-=======
-
->>>>>>> 6d862d1 (update full web)
 const b64=a=>btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const unb64=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0));};
 const $=id=>document.getElementById(id);
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-<<<<<<< HEAD
 function toast(title,text='',icon='success'){return window.Swal?Swal.fire({icon,title,text,confirmButtonColor:'#00BFFF'}):alert(title+(text?'\n'+text:''));}
 async function confirmBox(text){if(window.Swal){const r=await Swal.fire({icon:'warning',title:'Konfirmasi',text,showCancelButton:true,confirmButtonText:'Ya',cancelButtonText:'Batal',confirmButtonColor:'#00BFFF',cancelButtonColor:'#64748b'});return r.isConfirmed}return confirm(text)}
 function showLogin(show=true){$('loginWrapper').classList.toggle('hidden',!show);$('appContainer').classList.toggle('hidden',show)}
@@ -71,84 +66,3 @@ async function boot(){updateClock();setInterval(updateClock,1000);try{const r=aw
 setInterval(async()=>{if(!$('appContainer').classList.contains('hidden')){try{const r=await request('me');if(!r.success)location.reload()}catch{}}},60000);
 $('maintenanceTitle')?.addEventListener('input',renderMaintenancePreview);$('maintenanceMessage')?.addEventListener('input',renderMaintenancePreview);$('maintenanceUntil')?.addEventListener('input',renderMaintenancePreview);
 window.addEventListener('hashchange',routeFromHash);window.addEventListener('popstate',routeFromHash);document.addEventListener('DOMContentLoaded',boot);
-=======
-function toast(title,text='',icon='success'){if(window.Swal)return Swal.fire({icon,title,text,confirmButtonColor:'#0ea5e9'});alert(title+(text?'\n'+text:''));}
-async function confirmBox(text){if(window.Swal){const r=await Swal.fire({icon:'warning',title:'Konfirmasi',text,showCancelButton:true,confirmButtonText:'Ya',cancelButtonText:'Batal',confirmButtonColor:'#0ea5e9'});return r.isConfirmed}return confirm(text)}
-function showLogin(show=true){$('loginWrapper').style.display=show?'flex':'none';$('appContainer').style.display=show?'none':'flex';}
-function setLoginMsg(t,ok=false){$('loginMsg').textContent=t;$('loginMsg').style.color=ok?'#16a34a':'#64748b';}
-
-async function initCrypto(){
- if(cryptoReady)return;
- const r=await fetch(API+'?action=key',{cache:'no-store'}); if(!r.ok)throw new Error('Public key admin gagal diambil.');
- const j=await r.json(); serverKey=await crypto.subtle.importKey('jwk',j.publicKey,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
- clientKeys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['encrypt','decrypt']);
- cryptoReady=true;
-}
-async function request(action,payload={}){
- await initCrypto();
- const aes=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
- const iv=crypto.getRandomValues(new Uint8Array(12));
- const enc=await crypto.subtle.encrypt({name:'AES-GCM',iv},aes,new TextEncoder().encode(JSON.stringify(payload)));
- const rawKey=await crypto.subtle.exportKey('raw',aes);
- const wrapped=await crypto.subtle.encrypt({name:'RSA-OAEP'},serverKey,rawKey);
- const jwk=await crypto.subtle.exportKey('jwk',clientKeys.publicKey);
- const bytes=new Uint8Array(enc),tag=bytes.slice(-16),data=bytes.slice(0,-16);
- const envelope={v:1,alg:'RSA-OAEP-256/AES-256-GCM',key:b64(wrapped),iv:b64(iv),tag:b64(tag),data:b64(data)};
- const r=await fetch(API+'?action='+encodeURIComponent(action),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Fingerprint':fingerprint()},body:JSON.stringify({envelope,clientPublicKey:jwk})});
- const raw=await r.json();
- if(!raw.encrypted)throw new Error(raw.message||raw.error||'Response server tidak valid.');
- const aesRaw=await crypto.subtle.decrypt({name:'RSA-OAEP'},clientKeys.privateKey,unb64(raw.data.key));
- const responseKey=await crypto.subtle.importKey('raw',aesRaw,{name:'AES-GCM'},false,['decrypt']);
- const all=new Uint8Array([...unb64(raw.data.data),...unb64(raw.data.tag)]);
- const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(raw.data.iv)},responseKey,all);
- const out=JSON.parse(new TextDecoder().decode(plain));
- if(!r.ok)throw new Error(out.message||'Request gagal.');
- return out;
-}
-function fingerprint(){let s=navigator.userAgent+'|'+screen.width+'x'+screen.height+'|'+screen.colorDepth+'|'+navigator.platform+'|'+navigator.hardwareConcurrency;return cryptoJSsha(s)}
-function cryptoJSsha(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return 'adminfp-'+(h>>>0).toString(16)+'-'+btoa(s).slice(0,18)}
-async function login(){
- try{setLoginMsg('Memproses login…');$('btnLogin').disabled=true;
-  const email=$('loginEmail').value.trim(),password=$('loginPassword').value;if(!email||!password)throw new Error('Email/username dan password wajib diisi.');
-  const r=await request('login',{username:email,password});if(!r.success)throw new Error(r.message||'Login gagal.');
-  currentAdmin={username:r.username,role:r.role};$('loginPassword').value='';showLogin(false);$('navbarUserName').textContent=r.username;toast('Login berhasil','Selamat datang, '+r.username);await loadDashboard();
- }catch(e){setLoginMsg(e.message);toast('Login gagal',e.message,'error')}finally{$('btnLogin').disabled=false}
-}
-async function logout(){try{await request('logout')}catch{}location.reload()}
-function toggleSidebar(){$('sidebar').classList.toggle('open')}
-function switchPage(page){
- document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.sidebar-nav a').forEach(x=>x.classList.remove('active'));
- $('page-'+page)?.classList.add('active');document.querySelector(`[data-page="${page}"]`)?.classList.add('active');$('sidebar').classList.remove('open');
- const f={dashboard:loadDashboard,'all-users':loadUsers,'aktivasi-user':loadActivations,'unbanned-users':loadBannedUsers,'banakses-users':loadBanAksesUsers,'force-users':loadForceUsers,'problem-users':loadProblemUsers,'activity-log':loadLogs,'suspicious-log':loadSuspicious,'web-stats':loadStats,maintenance:loadMaintenance,'migrate-password':()=>{},settings:loadSettings,'path-manager':()=>{}};f[page]?.();
-}
-function status(u){return u.banned?'BANNED':(u.accessBanned||u.banAkses)?'BAN AKSES':u.forceLogout?'FORCE LOGOUT':((u.status||'active').toUpperCase())}
-async function loadUsers(){const r=await request('users');usersCache=r.users||[];renderUsers();updateStats(usersCache)}
-function renderUsers(){const q=($('userSearch')?.value||'').toLowerCase();const a=usersCache.filter(u=>(u.username+' '+u.email).toLowerCase().includes(q));$('allUsersCount').textContent=a.length?usersCache.length:usersCache.length;$('allUsersList').innerHTML=a.length?a.map(u=>`<div class="user-card"><div class="avatar">${esc((u.username||'?')[0].toUpperCase())}</div><div class="user-main"><b>${esc(u.username||'-')}</b><span>${esc(u.email||'-')} · ${esc(u.role||'User')}</span><small>IP: ${esc((u.ipHistory||[]).slice(-1)[0]||'-')} · FP: ${esc((u.fpHistory||[]).slice(-1)[0]||'-')}</small></div><span class="user-state">${esc(status(u))}</span><button class="btn sm" onclick="editUser('${esc(u.username)}')">Edit</button><button class="btn sm danger" onclick="doUser('delete-user','${esc(u.username)}')">Hapus</button></div>`).join(''):'<div class="empty">Tidak ada user.</div>'}
-function updateStats(a){$('statTotal').textContent=a.length;$('statActive').textContent=a.filter(u=>u.status==='active'||u.isActive===true).length;$('statPending').textContent=a.filter(u=>u.status==='pending'||u.needsActivation===true).length;$('statBanned').textContent=a.filter(u=>u.banned===true).length}
-async function doUser(action,username){if(action==='delete-user'&&!await confirmBox('Hapus user '+username+'?'))return;try{const r=await request(action,{username});toast(r.success?'Berhasil':'Gagal',r.message||'');await Promise.all([loadUsers(),loadLogs()])}catch(e){toast('Gagal',e.message,'error')}}
-async function editUser(username){const u=usersCache.find(x=>x.username===username);if(!u)return;const email=prompt('Email:',u.email||'');if(email===null)return;const role=prompt('Role (User/Admin):',u.role||'User');if(role===null)return;const password=prompt('Password baru (kosong = tidak diubah):','');try{const r=await request('edit-user',{username,email,role,password});toast(r.success?'Berhasil':'Gagal',r.message||'');await Promise.all([loadUsers(),loadLogs()])}catch(e){toast('Gagal',e.message,'error')}}
-async function loadBannedUsers(){await loadUsers();const a=usersCache.filter(u=>u.banned);$('bannedUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>${u.bannedUntil?new Date(u.bannedUntil).toLocaleString('id-ID'):'Permanen'}</td><td><button class="btn sm ok" onclick="doUser('unbanned','${esc(u.username)}')">Unban</button></td></tr>`).join('')||'<tr><td colspan="4">Tidak ada user banned.</td></tr>'}
-async function loadBanAksesUsers(){await loadUsers();const a=usersCache.filter(u=>u.accessBanned||u.banAkses);$('banaksesUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc((u.ipHistory||[]).slice(-1)[0]||'-')}</td><td>${esc((u.fpHistory||[]).slice(-1)[0]||'-')}</td><td><button class="btn sm ok" onclick="doUser('unban-akses','${esc(u.username)}')">Unban</button></td></tr>`).join('')||'<tr><td colspan="4">Tidak ada.</td></tr>'}
-async function loadForceUsers(){await loadUsers();const a=usersCache.filter(u=>u.forceLogout);$('forceUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td>Ditangguhkan</td><td><button class="btn sm ok" onclick="doUser('unforce','${esc(u.username)}')">Lepas</button></td></tr>`).join('')||'<tr><td colspan="3">Tidak ada.</td></tr>'}
-async function loadProblemUsers(){await loadUsers();const a=usersCache.filter(u=>u.banned||u.accessBanned||u.banAkses||u.forceLogout);$('problemUsersTable').innerHTML=a.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(status(u))}</td><td><button class="btn sm" onclick="editUser('${esc(u.username)}')">Edit</button></td></tr>`).join('')||'<tr><td colspan="3">Tidak ada.</td></tr>'}
-async function loadActivations(){await loadUsers();const a=usersCache.filter(u=>u.status==='pending'||u.needsActivation);$('pendingActivationsList').innerHTML=a.map(u=>`<div class="user-card"><div class="avatar">${esc((u.username||'?')[0])}</div><div class="user-main"><b>${esc(u.username)}</b><span>${esc(u.email||'-')}</span></div><button class="btn sm ok" onclick="activateUser('${esc(u.username)}')">Aktifkan</button></div>`).join('')||'<div class="empty">Tidak ada pending activation.</div>'}
-async function activateUser(username){try{const r=await request('edit-user',{username,status:'active',isActive:true,needsActivation:false,activationStatus:'accepted'});toast(r.success?'Berhasil':'Gagal',r.message||'');await Promise.all([loadUsers(),loadLogs()])}catch(e){toast('Gagal',e.message,'error')}}
-function logHtml(x){return `<div class="log-item"><div class="meta">${new Date(Number(x.timestamp||0)).toLocaleString('id-ID')}</div><div><div class="action">${esc(x.username||'System')} · ${esc(x.action||'-')}</div><div class="detail">${esc(x.details||x.message||'-')}</div></div><div class="meta">IP ${esc(x.ip||'-')}<br>FP ${esc(x.fingerprint||'-')}</div></div>`}
-async function loadLogs(){try{const r=await request('logs',{limit:300});const a=r.logs||[];$('allActivityLog').innerHTML=a.length?a.map(logHtml).join(''):'<div class="empty">Belum ada log aktivitas.</div>';$('dashboardLogs').innerHTML=a.slice(0,8).map(logHtml).join('')||'<div class="empty">Belum ada aktivitas.</div>';$('webStatTotalLogins').textContent=a.length}catch(e){console.error(e)}}
-async function loadSuspicious(){try{const r=await request('suspicious-logs');$('suspiciousActivityLog').innerHTML=(r.logs||[]).map(logHtml).join('')||'<div class="empty">Tidak ada log mencurigakan.</div>'}catch(e){$('suspiciousActivityLog').innerHTML='<div class="empty">Gagal memuat log.</div>'}}
-async function clearAllLogs(){toast('Info','Penghapusan massal log belum diaktifkan untuk menjaga audit trail.','info')}
-async function loadStats(){const r=await request('stats');$('webStatTotalLogins').textContent=(await request('logs',{limit:300})).logs?.length||0;$('webStatMaintenance').textContent=r.stats.maintenance?'ON':'OFF'}
-async function loadMaintenance(){const r=await request('maintenance-status');$('maintenanceStatusBadge').textContent=r.maintenance?'ON':'OFF';$('maintenanceStatusBadge').className='badge '+(r.maintenance?'badge-red':'badge-green');$('maintenanceTitle').value=r.title||'';$('maintenanceMessage').value=r.message||'';$('maintenanceUntil').value=r.until||0}
-async function enableMaintenance(){const r=await request('maintenance',{enabled:true,title:$('maintenanceTitle').value,message:$('maintenanceMessage').value,until:Number($('maintenanceUntil').value)||0});toast(r.success?'Berhasil':'Gagal',r.message||'');await Promise.all([loadMaintenance(),loadLogs()])}
-async function disableMaintenance(){const r=await request('maintenance',{enabled:false,title:'',message:'',until:0});toast(r.success?'Berhasil':'Gagal',r.message||'');await Promise.all([loadMaintenance(),loadLogs()])}
-async function startPasswordMigration(){if(!await confirmBox('Migrasikan password plaintext menjadi bcrypt dan hapus plaintext?'))return;const p=$('migrationProgress'),r=$('migrationResult');p.classList.add('show');r.style.display='none';try{const x=await request('migrate-passwords');p.classList.remove('show');r.style.display='block';r.className='migration-result success';r.innerHTML=`Selesai.<br>Berhasil: <b>${x.migrated||0}</b><br>Sudah hash: <b>${x.alreadyHashed||0}</b><br>Dilewati: <b>${x.skipped||0}</b><br>Gagal: <b>${x.failed||0}</b>`;await loadLogs()}catch(e){p.classList.remove('show');r.style.display='block';r.className='migration-result error';r.textContent=e.message}}
-async function migrateUsersNewFormat(){if(!await confirmBox('Migrasikan semua user ke format encrypted v2?'))return;const p=$('migrationProgress'),r=$('migrationResult');p.classList.add('show');r.style.display='none';try{const x=await request('migrate_users_format');p.classList.remove('show');r.style.display='block';r.className='migration-result success';r.innerHTML=`Selesai.<br>Berhasil: <b>${x.migrated||0}</b><br>Dilewati: <b>${x.skipped||0}</b><br>Gagal: <b>${x.failed||0}</b>`;await loadLogs()}catch(e){p.classList.remove('show');r.style.display='block';r.className='migration-result error';r.textContent=e.message}}
-async function loadSettings(){try{const r=await request('auth');$('settingsEmail').value=r.email||r.username||''}catch(e){}}
-async function changeEmail(){const email=$('settingsEmail').value.trim();try{const r=await request('change-email',{email});toast(r.success?'Berhasil':'Gagal',r.message||'');await loadLogs()}catch(e){toast('Gagal',e.message,'error')}}
-async function changePassword(){const a=$('settingsPassword').value,b=$('settingsPasswordConfirm').value;if(a.length<8||a!==b)return toast('Password tidak valid','Minimal 8 karakter dan harus sama.','warning');try{const r=await request('change-password',{password:a});toast(r.success?'Berhasil':'Gagal',r.message||'');if(r.success){$('settingsPassword').value='';$('settingsPasswordConfirm').value=''}await loadLogs()}catch(e){toast('Gagal',e.message,'error')}}
-async function loadDashboard(){await loadUsers();await loadLogs();$('navbarUserName').textContent=currentAdmin?.username||'Admin'}
-function updateClock(){$('clockDisplay').innerHTML='<i class="far fa-clock"></i> '+new Date().toLocaleTimeString('id-ID')}
-async function boot(){updateClock();setInterval(updateClock,1000);try{const r=await request('me');if(r.success){currentAdmin=r.admin;showLogin(false);await loadDashboard()}else showLogin(true)}catch{showLogin(true)}}
-setInterval(async()=>{if($('appContainer').style.display!=='none'){try{const r=await request('me');if(!r.success)location.reload()}catch{}}},60000);
-document.addEventListener('DOMContentLoaded',boot);
->>>>>>> 6d862d1 (update full web)

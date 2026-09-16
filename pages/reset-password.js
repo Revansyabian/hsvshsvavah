@@ -1,31 +1,41 @@
 var API_RESET = '/api/webtopupbussid';
-var API_REVANSTORE = '/api/webtopupbussid';
+var API_SECRET = '1417-1426-1527-1517';
 var WHATSAPP_NUMBER = "6285199120995";
 var fingerprint = '';
 var resetInProgress = false;
 var isBlocked = false;
 var blockedChecked = false;
-var STORAGE_KEY = 'app_data';
 
 function storageSet(key, value) {
     try {
-        var allData = storageGetAll(); allData[key] = value;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
+        var allData = storageGetAll();
+        allData[key] = value;
+        var encrypted = CryptoJS.AES.encrypt(JSON.stringify(allData), 'session_local_secret').toString();
+        localStorage.setItem('app_data', encrypted);
     } catch (e) {}
 }
+
 function storageGet(key) {
     var allData = storageGetAll();
     return allData[key] !== undefined ? allData[key] : null;
 }
+
 function storageRemove(key) {
-    var allData = storageGetAll(); delete allData[key];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
+    var allData = storageGetAll();
+    delete allData[key];
+    var encrypted = CryptoJS.AES.encrypt(JSON.stringify(allData), 'session_local_secret').toString();
+    localStorage.setItem('app_data', encrypted);
 }
+
 function storageGetAll() {
     try {
-        var raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? (JSON.parse(raw) || {}) : {};
-    } catch (e) { return {}; }
+        var encrypted = localStorage.getItem('app_data');
+        if (!encrypted) return {};
+        var decrypted = CryptoJS.AES.decrypt(encrypted, 'session_local_secret').toString(CryptoJS.enc.Utf8);
+        return JSON.parse(decrypted) || {};
+    } catch (e) {
+        return {};
+    }
 }
 
 async function getFingerprint() {
@@ -38,9 +48,7 @@ async function getFingerprint() {
     fp += navigator.hardwareConcurrency || '';
     fp += navigator.deviceMemory || '';
     fp += navigator.platform || '';
-    const data = new TextEncoder().encode(fp);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return CryptoJS.MD5(fp).toString();
 }
 
 function sanitize(str) {
@@ -131,18 +139,19 @@ async function periksaMaintenance() {
             data: null,
             timestamp: Date.now()
         };
-        var requestBody = payload;
-        var res = await fetch(API_REVANSTORE, {
+        var res = await fetch(API_RESET, {
             method: 'POST',
-            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Fingerprint': fingerprint || 'check'
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(payload)
         });
         var result = await res.json();
-            if (result && result.data && typeof result.data === 'object') result = result.data;
+        if (result.encrypted && result.data) {
+            var dec = CryptoJS.AES.decrypt(result.data, API_SECRET).toString(CryptoJS.enc.Utf8);
+            if (dec) result = JSON.parse(dec);
+        }
         if (result && (result.maintenance === true || result.title || result.message)) {
             return result;
         }
@@ -162,26 +171,29 @@ async function checkIfBlocked() {
             data: { fingerprint: fingerprint },
             timestamp: Date.now()
         };
-        var requestBody = payload;
-        var res = await fetch(API_REVANSTORE, {
+        var res = await fetch(API_RESET, {
             method: 'POST',
-            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Fingerprint': fingerprint
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(payload)
         });
         var result = await res.json();
-            if (result && result.data && typeof result.data === 'object') result = result.data;
+        if (result.encrypted && result.data) {
+            var dec = CryptoJS.AES.decrypt(result.data, API_SECRET).toString(CryptoJS.enc.Utf8);
+            if (dec) result = JSON.parse(dec);
+        }
         if (result && result.blocked) {
             isBlocked = true;
+            storageSet('perangkat_diblokir', 'true');
         } else {
             isBlocked = false;
+            storageRemove('perangkat_diblokir');
         }
         blockedChecked = true;
     } catch (e) {
-        isBlocked = false;
+        isBlocked = storageGet('perangkat_diblokir') === 'true';
         blockedChecked = true;
     }
     return isBlocked;
@@ -260,20 +272,27 @@ async function resetPassword() {
             payload.data = { username: username };
         }
         
-        var requestBody = payload;
-        
         var res = await fetch(API_RESET, {
             method: 'POST',
-            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Fingerprint': fingerprint
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(payload)
         });
         
         var result = await res.json();
-            if (result && result.data && typeof result.data === 'object') result = result.data;
+        
+        if (result && result.data) {
+            try {
+                var dec = CryptoJS.AES.decrypt(result.data, API_SECRET).toString(CryptoJS.enc.Utf8);
+                if (dec) {
+                    result = JSON.parse(dec);
+                }
+            } catch (e) {
+                console.log('Decrypt error:', e);
+            }
+        }
         
         setButtonLoading(false);
         
@@ -366,27 +385,7 @@ async function resetPassword() {
     resetInProgress = false;
 }
 
-function ensureRecaptchaRendered(attempt) {
-    attempt = attempt || 0;
-    var box = document.querySelector('.g-recaptcha');
-    if (!box) return;
-    if (box.querySelector('iframe')) return;
-    if (typeof grecaptcha === 'undefined' || typeof grecaptcha.render !== 'function') {
-        if (attempt < 40) setTimeout(function () { ensureRecaptchaRendered(attempt + 1); }, 250);
-        return;
-    }
-    try {
-        if (!box.hasAttribute('data-recaptcha-rendered')) {
-            grecaptcha.render(box, { sitekey: box.getAttribute('data-sitekey') });
-            box.setAttribute('data-recaptcha-rendered', '1');
-        }
-    } catch (e) {
-        if (attempt < 40) setTimeout(function () { ensureRecaptchaRendered(attempt + 1); }, 250);
-    }
-}
-
 document.addEventListener('DOMContentLoaded', async function() {
-    setTimeout(ensureRecaptchaRendered, 0);
     if (!fingerprint) fingerprint = await getFingerprint();
     
     var maintenance = await periksaMaintenance();

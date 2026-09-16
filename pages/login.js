@@ -39,11 +39,49 @@ function storageGetAll() {
     } catch (e) { return {}; }
 }
 
-function getBlockKey(username) { return ''; }
-function getBlockData(username) { return { attempts: 0, blockedUntil: null, level: 0 }; }
-function saveBlockData(username, data) {}
-function getGlobalBlockData() { return { attempts: 0, blockedUntil: null }; }
-function saveGlobalBlockData(data) {}
+function getBlockKey(username) {
+    return 'blok_' + (username || 'global');
+}
+
+function getBlockData(username) {
+    var data = storageGet(getBlockKey(username));
+    if (data) {
+        try {
+            if (data.blockedUntil && Date.now() > data.blockedUntil) {
+                storageRemove(getBlockKey(username));
+                return { attempts: 0, blockedUntil: null, level: 0 };
+            }
+            return data;
+        } catch (e) {
+            return { attempts: 0, blockedUntil: null, level: 0 };
+        }
+    }
+    return { attempts: 0, blockedUntil: null, level: 0 };
+}
+
+function saveBlockData(username, data) {
+    storageSet(getBlockKey(username), data);
+}
+
+function getGlobalBlockData() {
+    var data = storageGet('global_block');
+    if (data) {
+        try {
+            if (data.blockedUntil && Date.now() > data.blockedUntil) {
+                storageRemove('global_block');
+                return { attempts: 0, blockedUntil: null };
+            }
+            return data;
+        } catch (e) {
+            return { attempts: 0, blockedUntil: null };
+        }
+    }
+    return { attempts: 0, blockedUntil: null };
+}
+
+function saveGlobalBlockData(data) {
+    storageSet('global_block', data);
+}
 
 function sanitize(str) {
     if (!str) return '';
@@ -76,6 +114,13 @@ async function checkIfBlocked() {
     if (blockedChecked) return isBlocked;
     if (!fingerprint) fingerprint = await getFingerprint();
     
+    var globalBlock = getGlobalBlockData();
+    if (globalBlock.blockedUntil && Date.now() < globalBlock.blockedUntil) {
+        isBlocked = true;
+        blockedChecked = true;
+        return true;
+    }
+    
     try {
         var payload = {
             path: 'check_blocked',
@@ -96,12 +141,14 @@ async function checkIfBlocked() {
         var result = await res.json();
         if (result && result.blocked) {
             isBlocked = true;
+            storageSet('perangkat_diblokir', 'true');
         } else {
             isBlocked = false;
+            storageRemove('perangkat_diblokir');
         }
         blockedChecked = true;
     } catch (e) {
-        isBlocked = false;
+        isBlocked = storageGet('perangkat_diblokir') === 'true';
         blockedChecked = true;
     }
     return isBlocked;
@@ -355,6 +402,12 @@ async function login() {
             loginInProgress = false;
             return;
         }
+        var blockData = getBlockData(username);
+        if (blockData.blockedUntil && Date.now() < blockData.blockedUntil) {
+            Swal.fire({ icon: "error", title: "Akses Ditolak", text: "🔒 Terlalu banyak percobaan!", confirmButtonColor: "#ef4444" });
+            loginInProgress = false;
+            return;
+        }
         var captchaResponse = grecaptcha.getResponse();
         if (!captchaResponse || captchaResponse.length === 0) {
             Swal.fire({ icon: "warning", title: "Oops...", text: "Centang \"I'm not a robot\" dulu ya!", confirmButtonColor: "#0ea5e9" });
@@ -378,6 +431,7 @@ async function login() {
         });
         if (result && result.blocked) {
             isBlocked = true;
+            storageSet('perangkat_diblokir', 'true');
             hideLoading();
             tampilkanHalamanBlokir();
             loginInProgress = false;
@@ -416,6 +470,11 @@ async function login() {
             return;
         }
         if (result && result.success) {
+            storageRemove(getBlockKey(username));
+            var globalBlock = getGlobalBlockData();
+            if (globalBlock.attempts > 0) {
+                saveGlobalBlockData({ attempts: 0, blockedUntil: null });
+            }
             var user = result.data;
             var expiryCheck = checkAccountExpiry(user);
             if (expiryCheck.expired) {
@@ -452,22 +511,51 @@ async function login() {
                 window.location.href = '/pages/dashboard';
             });
         } else {
-            var failedResult = await callRevanstore('login_failed', 'POST', {});
-            hideLoading();
-            try { grecaptcha.reset(); } catch (e) {}
-            if (failedResult && failedResult.blocked) {
+            await callRevanstore('login_failed', 'POST', {});
+            
+            var globalBlock = getGlobalBlockData();
+            globalBlock.attempts += 1;
+            
+            if (globalBlock.attempts >= 5) {
+                var duration = 15;
+                globalBlock.blockedUntil = Date.now() + duration * 60 * 1000;
+                saveGlobalBlockData(globalBlock);
                 isBlocked = true;
-                tampilkanHalamanBlokir();
+                storageSet('perangkat_diblokir', 'true');
+                hideLoading();
+                grecaptcha.reset();
+                Swal.fire({ 
+                    icon: "error", 
+                    title: "PERANGKAT DIBLOKIR", 
+                    text: "Terlalu banyak percobaan gagal. Perangkat Anda diblokir selama 15 menit.", 
+                    confirmButtonColor: "#ef4444" 
+                }).then(function() {
+                    tampilkanHalamanBlokir();
+                });
                 loginInProgress = false;
                 return;
             }
-            var remaining = failedResult && typeof failedResult.remaining === 'number' ? failedResult.remaining : null;
-            Swal.fire({
-                icon: "error",
-                title: "Login Gagal",
-                text: remaining !== null ? "User tidak ditemukan atau password salah! (" + remaining + " percobaan tersisa)" : "User tidak ditemukan atau password salah!",
-                confirmButtonColor: "#ef4444"
-            });
+            
+            saveGlobalBlockData(globalBlock);
+            
+            blockData.attempts += 1;
+            var d = getBlockDuration(blockData.attempts);
+            hideLoading();
+            grecaptcha.reset();
+            if (d > 0) {
+                blockData.blockedUntil = Date.now() + d * 60 * 1000;
+                saveBlockData(username, blockData);
+                Swal.fire({ icon: "error", title: "Akses Ditolak", text: "🔒 Terlalu banyak percobaan!", confirmButtonColor: "#ef4444" });
+            } else {
+                saveBlockData(username, blockData);
+                var remaining = 5 - globalBlock.attempts;
+                Swal.fire({ 
+                    icon: "error", 
+                    title: "Oops...", 
+                    text: "User tidak ditemukan atau password salah! (" + remaining + " percobaan lagi sebelum perangkat diblokir)", 
+                    confirmButtonColor: "#ef4444" 
+                });
+            }
         }
     } catch (error) {
         hideLoading();

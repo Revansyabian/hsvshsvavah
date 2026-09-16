@@ -41,11 +41,29 @@ function storageGetAll() {
     } catch (e) { return {}; }
 }
 
-function getBlockKey(username) { return ''; }
-function getBlockData(username) { return { attempts: 0, blockedUntil: null, level: 0 }; }
-function saveBlockData(username, data) {}
-function getGlobalBlockData() { return { attempts: 0, blockedUntil: null }; }
-function saveGlobalBlockData(data) {}
+function getBlockKey(username) {
+    return 'blok_' + (username || 'global');
+}
+
+function getBlockData(username) {
+    var data = storageGet(getBlockKey(username));
+    if (data) {
+        try {
+            if (data.blockedUntil && Date.now() > data.blockedUntil) {
+                storageRemove(getBlockKey(username));
+                return { attempts: 0, blockedUntil: null, level: 0 };
+            }
+            return data;
+        } catch (e) {
+            return { attempts: 0, blockedUntil: null, level: 0 };
+        }
+    }
+    return { attempts: 0, blockedUntil: null, level: 0 };
+}
+
+function saveBlockData(username, data) {
+    storageSet(getBlockKey(username), data);
+}
 
 function sanitize(str) {
     if (!str) return '';
@@ -121,12 +139,14 @@ async function checkIfBlocked() {
         var result = await res.json();
         if (result && result.blocked) {
             isBlocked = true;
+            storageSet('perangkat_diblokir', 'true');
         } else {
             isBlocked = false;
+            storageRemove('perangkat_diblokir');
         }
         blockedChecked = true;
     } catch (e) {
-        isBlocked = false;
+        isBlocked = storageGet('perangkat_diblokir') === 'true';
         blockedChecked = true;
     }
     return isBlocked;
@@ -543,12 +563,7 @@ async function checkAccountStatus() {
             },
             body: JSON.stringify(requestBody)
         });
-        if (res.status === 401) { await autoLogout(); return; }
         var result = await res.json();
-        if (result && result.expired) {
-            showExpiredBanner();
-            return;
-        }
         if (result && result.banned) {
             var untilText = (result.bannedUntil || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(result.bannedUntil).toLocaleString('id-ID'));
             Swal.fire({
@@ -595,9 +610,7 @@ async function checkAccountStatus() {
             currentUser.full_name = result.user.full_name || currentUser.full_name;
             currentUser.expiry_date = result.user.expiry_date || currentUser.expiry_date;
         }
-    } catch (e) {
-        if (e && (e.status === 401 || e.message === 'Sesi tidak valid')) await autoLogout();
-    }
+    } catch (e) {}
 }
 
 async function autoLogout() {
@@ -1323,11 +1336,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (typeof grecaptcha !== 'undefined') {
         grecaptcha.ready(async function() {
             await checkAccountStatus();
-            statusCheckInterval = setInterval(checkAccountStatus, 60000);
+            statusCheckInterval = setInterval(checkAccountStatus, 30000);
         });
     } else {
         await checkAccountStatus();
-        statusCheckInterval = setInterval(checkAccountStatus, 60000);
+        statusCheckInterval = setInterval(checkAccountStatus, 30000);
     }
     console.log('Dashboard siap. User:', currentUser.username);
 });

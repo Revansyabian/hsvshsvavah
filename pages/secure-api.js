@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var SERVER_KEY_URL = '/api/webtopup?action=key';
+    var SERVER_KEY_URL = '/api/webtopupbussid?action=key';
     var CHECK_MAINTENANCE_URL = '/api/webtopup?action=cek-maintece';
     var CHECK_BLOCK_URL = '/api/webtopup?action=cek-block';
     var STORAGE_KEY = '__webtopup_storage__';
@@ -90,17 +90,41 @@
         return JSON.parse(new TextDecoder().decode(plain));
     }
 
-    // localStorage hanya untuk data profil/sesi pengguna. Status IP/FP block, maintenance, ban,
-    // ban akses, forceLogout, dan masa aktif selalu diambil dari Firebase melalui server.
-    function storageEncrypt(value) { return value; }
-    function storageDecrypt(value) { return value; }
+    function storageKey() {
+        var key = sessionStorage.getItem(CLIENT_KEY_SESSION);
+        if (!key) {
+            key = randomString(32);
+            sessionStorage.setItem(CLIENT_KEY_SESSION, key);
+        }
+        return key;
+    }
+    function storageEncrypt(value) {
+        if (!window.CryptoJS) return value;
+        var iv = CryptoJS.lib.WordArray.random(16);
+        var key = CryptoJS.SHA256(storageKey());
+        var encrypted = CryptoJS.AES.encrypt(String(value), key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+        return 'v1.' + iv.toString(CryptoJS.enc.Base64) + '.' + encrypted.ciphertext.toString(CryptoJS.enc.Base64);
+    }
+    function storageDecrypt(value) {
+        if (!value || !window.CryptoJS || value.indexOf('v1.') !== 0) return value;
+        try {
+            var parts = value.split('.');
+            var iv = CryptoJS.enc.Base64.parse(parts[1]);
+            var cipher = CryptoJS.lib.CipherParams.create({ ciphertext: CryptoJS.enc.Base64.parse(parts[2]) });
+            var key = CryptoJS.SHA256(storageKey());
+            return CryptoJS.AES.decrypt(cipher, key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }).toString(CryptoJS.enc.Utf8);
+        } catch (e) { return null; }
+    }
     function isLocalStorage(target) { return target === window.localStorage; }
 
     Storage.prototype.setItem = function (key, value) {
+        if (isLocalStorage(this) && key !== STORAGE_KEY) return originalSetItem.call(this, key, storageEncrypt(value));
         return originalSetItem.call(this, key, value);
     };
     Storage.prototype.getItem = function (key) {
-        return originalGetItem.call(this, key);
+        var value = originalGetItem.call(this, key);
+        if (isLocalStorage(this) && key !== STORAGE_KEY) return storageDecrypt(value);
+        return value;
     };
     Storage.prototype.removeItem = function (key) {
         return originalRemoveItem.call(this, key);
@@ -110,7 +134,7 @@
         var url = typeof input === 'string' ? input : input.url;
         var absolute = new URL(url, location.href);
         var sameApi = absolute.origin === location.origin && absolute.pathname.indexOf('/api/') === 0;
-        var exempt = absolute.pathname === '/api/rvnstore' || ((absolute.pathname === '/api/webtopup' || absolute.pathname === '/api/webtopupbussid') && absolute.searchParams.get('action') === 'key');
+        var exempt = absolute.pathname === '/api/rvnstore' || (absolute.pathname === '/api/webtopup' && absolute.searchParams.get('action') === 'key');
         if (!sameApi || exempt) return originalFetch(input, init);
 
         var options = init ? Object.assign({}, init) : {};
@@ -144,14 +168,17 @@
 
     async function periodicSecurityCheck() {
         try {
-            var blockRes = await window.fetch(CHECK_BLOCK_URL, { credentials: 'same-origin', cache: 'no-store' });
+            var keys = await getClientKeys();
+            var fp = await getFingerprintSafe();
+            var headers = { 'X-Fingerprint': fp, 'X-Client-Key': keys.publicPem };
+            var blockRes = await originalFetch(CHECK_BLOCK_URL, { credentials: 'same-origin', cache: 'no-store', headers: headers });
             if (blockRes.ok) {
-                var blockData = await blockRes.json();
+                var blockData = await decryptDirect(blockRes);
                 if (blockData && blockData.blocked) showSecurityBlock();
             }
-            var maintenanceRes = await window.fetch(CHECK_MAINTENANCE_URL, { credentials: 'same-origin', cache: 'no-store' });
+            var maintenanceRes = await originalFetch(CHECK_MAINTENANCE_URL, { credentials: 'same-origin', cache: 'no-store', headers: headers });
             if (maintenanceRes.ok) {
-                var maintenanceData = await maintenanceRes.json();
+                var maintenanceData = await decryptDirect(maintenanceRes);
                 window.dispatchEvent(new CustomEvent('webtopup:maintenance', { detail: maintenanceData }));
                 if (maintenanceData && maintenanceData.maintenance) showMaintenance(maintenanceData);
             }

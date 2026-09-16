@@ -27,18 +27,6 @@
     {
       "source": "/admin",
       "destination": "/admin.html"
-    },
-    {
-      "source": "/admin/",
-      "destination": "/admin.html"
-    },
-    {
-      "source": "/admin/register",
-      "destination": "/admin-register.html"
-    },
-    {
-      "source": "/admin/register/",
-      "destination": "/admin-register.html"
     }
   ],
   "headers": [

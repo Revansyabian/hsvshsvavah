@@ -1,4 +1,5 @@
-var API_REGISTER = '/api/webtopupbussid';
+var API_REGISTER = '/api/register';
+var API_SECRET = '1417-1426-1527-1517';
 var WHATSAPP_NUMBER = '6285199120995';
 var fingerprint = '';
 var registerInProgress = false;
@@ -22,9 +23,7 @@ async function getFingerprint() {
     fp += navigator.hardwareConcurrency || '';
     fp += navigator.deviceMemory || '';
     fp += navigator.platform || '';
-    const data = new TextEncoder().encode(fp);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return CryptoJS.MD5(fp).toString();
 }
 function sanitize(str) {
     if (!str) return '';
@@ -95,9 +94,34 @@ function isValidScreenSize() {
     if (screen.width < 320 || screen.height < 480) return false;
     return true;
 }
-function checkBrowserRateLimit() { return true; }
-function recordRegisterAttempt() {}
-function resetRegisterAttempts() {}
+function checkBrowserRateLimit() {
+    var blockedUntil = localStorage.getItem('register_blocked_until');
+    if (blockedUntil) {
+        var timeLeft = parseInt(blockedUntil) - Date.now();
+        if (timeLeft > 0) {
+            var minutes = Math.ceil(timeLeft / 60000);
+            Swal.fire({ icon: "error", title: "Terlalu Banyak Percobaan!", text: "Coba lagi dalam " + minutes + " menit.", confirmButtonColor: "#ef4444" });
+            return false;
+        } else {
+            localStorage.removeItem('register_blocked_until');
+            localStorage.removeItem('register_attempts');
+        }
+    }
+    return true;
+}
+function recordRegisterAttempt() {
+    var attempts = parseInt(localStorage.getItem('register_attempts') || '0') + 1;
+    localStorage.setItem('register_attempts', attempts);
+    if (attempts >= 3) {
+        localStorage.setItem('register_blocked_until', Date.now() + 3600000);
+        localStorage.removeItem('register_attempts');
+        Swal.fire({ icon: "error", title: "Diblokir 1 Jam!", text: "Terlalu banyak percobaan gagal.", confirmButtonColor: "#ef4444" });
+    }
+}
+function resetRegisterAttempts() {
+    localStorage.removeItem('register_attempts');
+    localStorage.removeItem('register_blocked_until');
+}
 function updateStrengthBar(inputId, barId) {
     var value = document.getElementById(inputId).value;
     var bar = document.getElementById(barId);
@@ -203,8 +227,25 @@ function setButtonLoading(loading) {
     btn.disabled = loading;
     btn.innerHTML = loading ? '<i class="fas fa-spinner fa-spin"></i> MEMPROSES...' : '<i class="fas fa-user-plus"></i> DAFTAR';
 }
-function encryptData(data) { return data; }
-function decryptData(data) { return data; }
+function encryptData(data) {
+    try {
+        var jsonStr = JSON.stringify(data);
+        return CryptoJS.AES.encrypt(jsonStr, API_SECRET).toString();
+    } catch (error) {
+        console.error('Encryption error:', error);
+        return null;
+    }
+}
+function decryptData(encrypted) {
+    try {
+        var bytes = CryptoJS.AES.decrypt(encrypted, API_SECRET);
+        var decrypted = bytes.toString(CryptoJS.enc.Utf8);
+        return JSON.parse(decrypted);
+    } catch (error) {
+        console.error('Decryption error:', error);
+        return null;
+    }
+}
 async function callRegisterApi(action, data) {
     var payload = { action: action };
     if (data) {
@@ -215,20 +256,28 @@ async function callRegisterApi(action, data) {
         }
     }
     payload.timestamp = Date.now();
-    var requestBody = payload;
+    var encryptedPayload = encryptData(payload);
+    if (!encryptedPayload) throw new Error('Gagal mengenkripsi');
     var res = await fetch(API_REGISTER, {
         method: 'POST',
-        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
             'X-Fingerprint': fingerprint
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({ data: encryptedPayload })
     });
     if (res.status === 429) throw new Error('Terlalu banyak percobaan');
     var text = await res.text();
     if (!text || text === 'null') return null;
     var result = JSON.parse(text);
+    if (result && result.data) {
+        try {
+            var dec = decryptData(result.data);
+            if (dec) return dec;
+        } catch (e) {
+            return null;
+        }
+    }
     return result;
 }
 function tampilkanHalamanMaintenance(dataMaintenance) {
@@ -416,15 +465,6 @@ async function register() {
             registerInProgress = false;
             return;
         }
-        try {
-            var quotaRes = await fetch('/api/webtopup?action=cek-reset&username=' + encodeURIComponent(username), { credentials: 'same-origin', cache: 'no-store', headers: { 'X-Fingerprint': fingerprint } });
-            if (quotaRes.ok) {
-                var quotaData = await quotaRes.json();
-                if (quotaData && quotaData.quota) {
-                    Swal.fire({ icon: 'info', title: 'Status Reset', html: 'Reset akun: <b>' + Number(quotaData.resetCount || 0) + 'x</b><br>Sisa kuota perangkat hari ini: <b>' + Number(quotaData.quota.remaining || 0) + '/' + Number(quotaData.quota.max || 5) + '</b>', confirmButtonColor: '#0ea5e9' });
-                }
-            }
-        } catch (e) {}
         setButtonLoading(true);
         if (!fingerprint) fingerprint = await getFingerprint();
         var userIP = 'unknown';
@@ -482,27 +522,7 @@ async function register() {
     }
     registerInProgress = false;
 }
-function ensureRecaptchaRendered(attempt) {
-    attempt = attempt || 0;
-    var box = document.querySelector('.g-recaptcha');
-    if (!box) return;
-    if (box.querySelector('iframe')) return;
-    if (typeof grecaptcha === 'undefined' || typeof grecaptcha.render !== 'function') {
-        if (attempt < 40) setTimeout(function () { ensureRecaptchaRendered(attempt + 1); }, 250);
-        return;
-    }
-    try {
-        if (!box.hasAttribute('data-recaptcha-rendered')) {
-            grecaptcha.render(box, { sitekey: box.getAttribute('data-sitekey') });
-            box.setAttribute('data-recaptcha-rendered', '1');
-        }
-    } catch (e) {
-        if (attempt < 40) setTimeout(function () { ensureRecaptchaRendered(attempt + 1); }, 250);
-    }
-}
-
 document.addEventListener('DOMContentLoaded', async function () {
-    setTimeout(ensureRecaptchaRendered, 0);
     if (!fingerprint) fingerprint = await getFingerprint();
     var blockedOrMaintenance = await checkMaintenanceAndBlock();
     if (blockedOrMaintenance) {
