@@ -2,8 +2,8 @@
     'use strict';
 
     var SERVER_KEY_URL = '/api/webtopupbussid?action=key';
-    var CHECK_MAINTENANCE_URL = '/api/webtopup?action=cek-maintece';
-    var CHECK_BLOCK_URL = '/api/webtopup?action=cek-block';
+    var CHECK_MAINTENANCE_URL = '/api/webtopupbussid?action=cek-maintece';
+    var CHECK_BLOCK_URL = '/api/webtopupbussid?action=cek-block';
     var STORAGE_KEY = '__webtopup_storage__';
     var CLIENT_KEY_SESSION = '__webtopup_client_key__';
     var originalFetch = window.fetch.bind(window);
@@ -134,7 +134,7 @@
         var url = typeof input === 'string' ? input : input.url;
         var absolute = new URL(url, location.href);
         var sameApi = absolute.origin === location.origin && absolute.pathname.indexOf('/api/') === 0;
-        var exempt = absolute.pathname === '/api/rvnstore' || (absolute.pathname === '/api/webtopup' && absolute.searchParams.get('action') === 'key');
+        var exempt = absolute.pathname === '/api/rvnstore' || ((absolute.pathname === '/api/webtopup' || absolute.pathname === '/api/webtopupbussid') && absolute.searchParams.get('action') === 'key');
         if (!sameApi || exempt) return originalFetch(input, init);
 
         var options = init ? Object.assign({}, init) : {};
@@ -160,6 +160,9 @@
         if (!parsed || parsed.v !== 1 || !parsed.data || !parsed.key) return new Response(text, { status: response.status, statusText: response.statusText, headers: response.headers });
         try {
             var plain = await decryptEnvelope(parsed);
+            if (plain && Object.prototype.hasOwnProperty.call(plain, 'data')) {
+                plain = plain.data;
+            }
             return new Response(JSON.stringify(plain), { status: response.status, statusText: response.statusText, headers: response.headers });
         } catch (e) {
             return new Response(JSON.stringify({ error: 'Gagal mendekripsi response' }), { status: 502, headers: { 'Content-Type': 'application/json' } });

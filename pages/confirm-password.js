@@ -1,6 +1,6 @@
 // confirm-password.js
 var API_RESET = '/api/webtopupbussid';
-var API_REVANSTORE = '/api/webtopupbussid';
+function apiActionUrl(action) { return API_RESET + '?action=' + encodeURIComponent(action); }
 var fingerprint = '';
 var resetToken = '';
 
@@ -109,7 +109,7 @@ async function periksaMaintenance() {
             timestamp: Date.now()
         };
         var requestBody = payload;
-        var res = await fetch(API_REVANSTORE, {
+        var res = await fetch(apiActionUrl('cek-maintece'), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -138,7 +138,7 @@ async function checkIfBlocked() {
             timestamp: Date.now()
         };
         var requestBody = payload;
-        var res = await fetch(API_REVANSTORE, {
+        var res = await fetch(apiActionUrl('cek-block'), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -168,7 +168,7 @@ async function verifyToken() {
     var requestBody = payload;
 
     try {
-        var res = await fetch(API_RESET, {
+        var res = await fetch(apiActionUrl('verify_token'), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -296,7 +296,7 @@ async function confirmReset() {
     var requestBody = payload;
 
     try {
-        var res = await fetch(API_RESET, {
+        var res = await fetch(apiActionUrl('confirm_reset'), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {

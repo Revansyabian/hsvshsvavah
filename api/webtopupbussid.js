@@ -7,15 +7,18 @@ import bcrypt from 'bcryptjs';
 const MASTER_KEY = process.env.MASTER_KEY;
 if (!MASTER_KEY || MASTER_KEY.length < 32) throw new Error('MASTER_KEY wajib di-set dan minimal 32 karakter');
 const transportMasterKey = crypto.createHash('sha256').update(MASTER_KEY).digest();
-const transportKeys = crypto.generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-});
-const serverPrivateKey = crypto.createPrivateKey(transportKeys.privateKey);
+const transportPrivatePem = process.env.TRANSPORT_PRIVATE_KEY;
+if (!transportPrivatePem) throw new Error('TRANSPORT_PRIVATE_KEY wajib di-set di environment');
+let serverPrivateKey;
+try {
+  serverPrivateKey = crypto.createPrivateKey(transportPrivatePem.replace(/\\n/g, '\n'));
+} catch {
+  throw new Error('TRANSPORT_PRIVATE_KEY tidak valid');
+}
+const transportPublicKey = crypto.createPublicKey(serverPrivateKey).export({ type: 'spki', format: 'pem' });
 function b64(buf) { return Buffer.from(buf).toString('base64url'); }
 function fromB64(value) { return Buffer.from(String(value || ''), 'base64url'); }
-export function getTransportPublicKey() { return transportKeys.publicKey; }
+export function getTransportPublicKey() { return transportPublicKey; }
 export function decryptRequest(envelope) {
   if (!envelope || envelope.v !== 1 || envelope.alg !== 'RSA-OAEP-256/AES-256-GCM') throw new Error('Encrypted request required');
   const aesKey = crypto.privateDecrypt({ key: serverPrivateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, fromB64(envelope.key));
@@ -1860,37 +1863,35 @@ const resetHandler=createResetHandler();
 function looksLikeReset(action) { return new Set(['request_reset','verify_token','confirm_reset']).has(String(action||'')); }
 
 export default async function webtopupbussid(req,res) {
-  const queryAction=String(req.query.action||'').toLowerCase();
-  if (queryAction) {
-    const result=await securityAction(req,res,queryAction);
+  const queryAction = String(req.query.action || '').toLowerCase();
+  if (queryAction === 'key') {
+    return res.status(200).json({ publicKey: getTransportPublicKey() });
+  }
+
+  const clientKey = req.headers['x-client-key'];
+  const rawBody = req.body || {};
+  let body = rawBody;
+
+  if (rawBody && rawBody.v === 1 && rawBody.alg === 'RSA-OAEP-256/AES-256-GCM') {
+    try {
+      body = decryptRequest(rawBody);
+    } catch {
+      return res.status(400).json({ error: 'Encrypted request tidak valid' });
+    }
+  }
+
+  if (clientKey) {
+    const json = res.json.bind(res);
+    res.json = (value) => json(encryptResponse(value, clientKey));
+  }
+
+  if (queryAction === 'cek-maintece' || queryAction === 'cek-maintenance' || queryAction === 'cek-block' || queryAction === 'cek-reset') {
+    const result = await securityAction({ ...req, body }, res, queryAction);
     if (result) return result;
   }
 
-  const directEnvelope=req.body?.envelope;
-  if (directEnvelope) {
-    const clientKey=req.headers['x-client-key'];
-    if (!clientKey) return res.status(400).json({error:'Client public key diperlukan'});
-    try {
-      req.body=decryptRequest(directEnvelope);
-    } catch {
-      return res.status(400).json({error:'Encrypted request tidak valid'});
-    }
-    const json=res.json.bind(res);
-    res.json=(body)=>json(encryptResponse(body,clientKey));
-  }
-
-  const body=req.body||{};
-  const bodyAction=String(body.action||'').toLowerCase();
-
-  if (body.path) return revanstoreHandler(req,res);
-
-  if (bodyAction==='login' || bodyAction==='logout') {
-    req.body={...body,path:bodyAction,method:body.method||'POST',data:body.data||body};
-    return revanstoreHandler(req,res);
-  }
-
-  if (looksLikeReset(bodyAction)) return resetHandler(req,res);
-  if (bodyAction) return registerHandler(req,res);
-
-  return res.status(400).json({error:'Permintaan tidak valid'});
+  if (body && body.path) return revanstoreHandler({ ...req, body }, res);
+  if (body && body.action && looksLikeReset(body.action)) return resetHandler({ ...req, body }, res);
+  if (body && body.action) return registerHandler({ ...req, body }, res);
+  return res.status(400).json({ error: 'Permintaan tidak valid' });
 }

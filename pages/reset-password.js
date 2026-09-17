@@ -1,4 +1,6 @@
 var API_RESET = '/api/webtopupbussid';
+function apiActionUrl(action) { return API_RESET + '?action=' + encodeURIComponent(action); }
+var API_REVANSTORE = '/api/webtopupbussid';
 var API_SECRET = '1417-1426-1527-1517';
 var WHATSAPP_NUMBER = "6285199120995";
 var fingerprint = '';
@@ -139,13 +141,14 @@ async function periksaMaintenance() {
             data: null,
             timestamp: Date.now()
         };
-        var res = await fetch(API_RESET, {
+        var encryptedPayload = CryptoJS.AES.encrypt(JSON.stringify(payload), API_SECRET).toString();
+        var res = await fetch(apiActionUrl('cek-maintece'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Fingerprint': fingerprint || 'check'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ data: encryptedPayload })
         });
         var result = await res.json();
         if (result.encrypted && result.data) {
@@ -171,13 +174,14 @@ async function checkIfBlocked() {
             data: { fingerprint: fingerprint },
             timestamp: Date.now()
         };
-        var res = await fetch(API_RESET, {
+        var encryptedPayload = CryptoJS.AES.encrypt(JSON.stringify(payload), API_SECRET).toString();
+        var res = await fetch(apiActionUrl('cek-block'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Fingerprint': fingerprint
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ data: encryptedPayload })
         });
         var result = await res.json();
         if (result.encrypted && result.data) {
@@ -272,13 +276,15 @@ async function resetPassword() {
             payload.data = { username: username };
         }
         
-        var res = await fetch(API_RESET, {
+        var encryptedPayload = CryptoJS.AES.encrypt(JSON.stringify(payload), API_SECRET).toString();
+        
+        var res = await fetch(apiActionUrl('request_reset'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Fingerprint': fingerprint
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ data: encryptedPayload })
         });
         
         var result = await res.json();

@@ -11,10 +11,6 @@ const RECAPTCHA_V2_SITE_KEY = '6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT';
 if (!ADMIN_KEY || ADMIN_KEY.length < 32) throw new Error('ADMIN_KEY wajib di-set dan minimal 32 karakter');
 if (!SESSION_SECRET || SESSION_SECRET.length < 32) throw new Error('SESSION_SECRET wajib di-set dan minimal 32 karakter');
 
-/* =========================================
-   ADMIN RATE LIMIT
-========================================= */
-
 const ADMIN_LOGIN_LIMIT = 60;
 const ADMIN_ACTION_LIMIT = 120;
 const ADMIN_WRONG_LOGIN_LIMIT = 4;
@@ -47,10 +43,12 @@ async function verifyRecaptchaV2(token, req) {
     params.set('response', String(token));
     const ip = ipOf(req);
     if (ip && ip !== 'unknown') params.set('remoteip', ip);
-    const r = await fetch('https://www.google.com/recaptcha/api/siteverify', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
+    const r = await fetch('https://www.google.com/recaptcha/api/siteverify', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
     const data = await r.json();
     return data.success === true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 async function getLoginAttempt(ip, fp) {
@@ -58,28 +56,44 @@ async function getLoginAttempt(ip, fp) {
   const ref = db.ref(`admin_login_attempts/${key}`);
   const snap = await ref.once('value');
   const data = decryptAtRest(snap.val()?.data) || {};
-  if (data.firstAt && Date.now() - Number(data.firstAt) > ADMIN_WRONG_LOGIN_WINDOW) { await ref.remove(); return {count:0,ref,data:{}}; }
-  return {count:Number(data.count||0),ref,data};
+  if (data.firstAt && Date.now() - Number(data.firstAt) > ADMIN_WRONG_LOGIN_WINDOW) {
+    await ref.remove();
+    return { count: 0, ref, data: {} };
+  }
+  return { count: Number(data.count || 0), ref, data };
 }
+
 async function recordWrongLogin(ip, fp) {
-  const state=await getLoginAttempt(ip,fp); const count=state.count+1;
-  await state.ref.set({data:encryptAtRest({count,firstAt:state.data.firstAt||Date.now(),lastAt:Date.now(),ip,fingerprint:fp||''})});
+  const state = await getLoginAttempt(ip, fp);
+  const count = state.count + 1;
+  await state.ref.set({ data: encryptAtRest({ count, firstAt: state.data.firstAt || Date.now(), lastAt: Date.now(), ip, fingerprint: fp || '' }) });
   return count;
 }
+
 async function resetWrongLogin(ip, fp) {
   await db.ref(`admin_login_attempts/${dbKey(ip)}_${dbKey(fp || 'nofp')}`).remove();
 }
+
 async function isIPBlocked(ip) {
-  if(!ip)return false; const snap=await db.ref(`blocked_ips/${String(ip).replace(/\./g,'_')}`).once('value'); return decryptAtRest(snap.val()?.data)?.blocked===true;
+  if (!ip) return false;
+  const snap = await db.ref(`blocked_ips/${String(ip).replace(/\./g, '_')}`).once('value');
+  return decryptAtRest(snap.val()?.data)?.blocked === true;
 }
+
 async function isFPBlocked(fp) {
-  if(!fp)return false; const snap=await db.ref(`blocked_fp/${dbKey(fp)}`).once('value'); return decryptAtRest(snap.val()?.data)?.blocked===true;
+  if (!fp) return false;
+  const snap = await db.ref(`blocked_fp/${dbKey(fp)}`).once('value');
+  return decryptAtRest(snap.val()?.data)?.blocked === true;
 }
+
 async function blockIP(ip, reason) {
-  if(!ip)return; await db.ref(`blocked_ips/${String(ip).replace(/\./g,'_')}`).set({data:encryptAtRest({ip,blocked:true,reason:reason||'',blockedAt:Date.now(),source:'admin-login'})});
+  if (!ip) return;
+  await db.ref(`blocked_ips/${String(ip).replace(/\./g, '_')}`).set({ data: encryptAtRest({ ip, blocked: true, reason: reason || '', blockedAt: Date.now(), source: 'admin-login' }) });
 }
+
 async function blockFP(fp, reason) {
-  if(!fp)return; await db.ref(`blocked_fp/${dbKey(fp)}`).set({data:encryptAtRest({fingerprint:fp,blocked:true,reason:reason||'',blockedAt:Date.now(),source:'admin-login'})});
+  if (!fp) return;
+  await db.ref(`blocked_fp/${dbKey(fp)}`).set({ data: encryptAtRest({ fingerprint: fp, blocked: true, reason: reason || '', blockedAt: Date.now(), source: 'admin-login' }) });
 }
 
 let privateKey;
