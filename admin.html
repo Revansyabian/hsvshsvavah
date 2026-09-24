@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#00BFFF">
+<title>Panel Admin • RevanStore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+<style>
+:root{--bg:#f6f8fb;--surface:#ffffff;--surface-2:#f9fbfd;--text:#0f172a;--text-2:#475569;--muted:#94a3b8;--line:#e8eef5;--primary:#00BFFF;--primary-2:#0099CC;--primary-soft:#e6f8ff;--danger:#ef4444;--danger-soft:#fee2e2;--success:#10b981;--success-soft:#d1fae5;--warning:#f59e0b;--warning-soft:#fef3c7;--nav:#0a1628;--nav-2:#0f1f36;--shadow-sm:0 1px 2px rgba(15,23,42,.04);--shadow:0 4px 16px rgba(15,23,42,.06);--radius:14px;--radius-lg:20px;--radius-sm:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+button,input,textarea,select{font-family:inherit;font-size:inherit}
+.hidden{display:none!important}
+a{color:inherit;text-decoration:none}
+.login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 15% 15%,rgba(0,191,255,.15),transparent 40%),radial-gradient(circle at 85% 85%,rgba(0,191,255,.1),transparent 40%),linear-gradient(135deg,#e0f2fe 0%,#bae6fd 50%,#7dd3fc 100%)}
+.login-card{width:100%;max-width:440px;background:var(--surface);border-radius:28px;padding:44px 36px 36px;box-shadow:0 30px 80px rgba(0,100,150,.12),0 0 0 1px rgba(255,255,255,.5);animation:fadeUp .5s cubic-bezier(.16,1,.3,1)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.login-header{text-align:center;margin-bottom:32px}
+.login-logo{width:84px;height:84px;border-radius:24px;margin:0 auto 20px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0f2fe,#bae6fd);box-shadow:0 12px 30px rgba(14,165,233,.2)}
+.login-logo img{width:100%;height:100%;object-fit:cover;display:block}
+.login-header h1{color:#0c4a6e;font-size:26px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+.login-header p{color:var(--muted);font-size:13px;margin:0}
+.field{margin-bottom:18px}
+.field label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#334155;margin-bottom:8px;letter-spacing:.01em}
+.field label i{color:var(--primary);font-size:13px}
+.input-wrap{position:relative}
+.input-wrap>i.icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--primary);font-size:14px;pointer-events:none}
+.field input{width:100%;padding:14px 16px 14px 44px;background:var(--surface-2);border:1.5px solid var(--line);border-radius:12px;color:var(--text);font-size:14px;transition:all .2s cubic-bezier(.16,1,.3,1)}
+.field input:focus{outline:none;border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 4px rgba(0,191,255,.12)}
+.field input::placeholder{color:var(--muted)}
+.captcha-wrap{display:flex;justify-content:center;margin:18px 0;min-height:78px}
+.login-btn{width:100%;padding:15px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;font-size:15px;font-weight:700;letter-spacing:.01em;cursor:pointer;transition:all .2s cubic-bezier(.16,1,.3,1);box-shadow:0 8px 20px rgba(0,191,255,.25);display:flex;align-items:center;justify-content:center;gap:10px}
+.login-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 28px rgba(0,191,255,.35)}
+.login-btn:disabled{opacity:.6;cursor:not-allowed}
+.login-msg{text-align:center;min-height:20px;margin-top:14px;font-size:12px;color:var(--danger)}
+.login-footer{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);text-align:center;font-size:11px;color:var(--muted)}
+.app{display:none}
+.app.on{display:block}
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:260px;background:linear-gradient(180deg,var(--nav),var(--nav-2));color:#cbd5e1;z-index:90;overflow-y:auto;padding:20px 14px;transform:translateX(-100%);transition:transform .28s cubic-bezier(.16,1,.3,1)}
+.sidebar.open{transform:translateX(0)}
+.sidebar::-webkit-scrollbar{width:6px}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+.brand{display:flex;align-items:center;gap:12px;padding:4px 8px 20px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:16px}
+.brand img{width:40px;height:40px;border-radius:12px;background:#fff;padding:3px;object-fit:cover}
+.brand-text{display:flex;flex-direction:column;color:#fff}
+.brand-text b{font-size:14px;font-weight:800;letter-spacing:-.01em}
+.brand-text span{font-size:11px;color:#64748b}
+.nav-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#475569;padding:14px 10px 8px}
+.sidebar-nav a{display:flex;align-items:center;gap:12px;padding:11px 14px;margin:2px 0;border-radius:11px;color:#94a3b8;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;user-select:none}
+.sidebar-nav a i{width:18px;text-align:center;font-size:14px;transition:transform .15s}
+.sidebar-nav a:hover{background:rgba(255,255,255,.04);color:#fff}
+.sidebar-nav a.active{background:linear-gradient(90deg,var(--primary),var(--primary-2));color:#fff;box-shadow:0 8px 20px rgba(0,191,255,.3)}
+.sidebar-nav a.logout-link{color:#fca5a5;margin-top:8px}
+.main{min-height:100vh;transition:margin-left .28s cubic-bezier(.16,1,.3,1)}
+.main.shifted{margin-left:260px}
+.topbar{height:68px;position:sticky;top:0;z-index:60;background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+.top-left{display:flex;align-items:center;gap:14px}
+.hamburger{width:40px;height:40px;border:1px solid var(--line);background:var(--surface);border-radius:11px;cursor:pointer;display:grid;place-items:center;color:var(--text-2);transition:all .15s}
+.top-title{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.admin-chip{display:flex;align-items:center;gap:10px;padding:7px 14px 7px 10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;font-size:12px;font-weight:600}
+.admin-avatar{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+.content{padding:24px;max-width:1500px;margin:0 auto}
+.page{display:none;animation:fadeIn .25s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.page-head-left h2{font-size:26px;font-weight:800;letter-spacing:-.03em;margin:0 0 4px;color:var(--text)}
+.page-head-left p{font-size:13px;color:var(--text-2);margin:0}
+.page-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:0;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;line-height:1}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;box-shadow:0 4px 12px rgba(0,191,255,.25)}
+.btn.success{background:var(--success);color:#fff;box-shadow:0 4px 12px rgba(16,185,129,.2)}
+.btn.warning{background:var(--warning);color:#fff;box-shadow:0 4px 12px rgba(245,158,11,.2)}
+.btn.danger{background:var(--danger);color:#fff;box-shadow:0 4px 12px rgba(239,68,68,.2)}
+.btn.light{background:var(--surface);color:var(--text-2);border:1px solid var(--line)}
+.btn.light:hover{background:var(--surface-2);color:var(--text)}
+.btn.sm{padding:6px 11px;font-size:11.5px}
+.btn .fa-solid,.btn .fa-regular,.btn .fa-brands{font-size:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
+.panel-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.panel-title{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.panel-title i{color:var(--primary);font-size:13px}
+.panel-body{padding:22px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.stat-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;transition:all .2s}
+.stat-card:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--primary),var(--primary-2))}
+.stat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.stat-head small{font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em}
+.stat-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary-2);font-size:15px}
+.stat-value{font-size:30px;font-weight:800;letter-spacing:-.04em;color:var(--text);line-height:1}
+.search-wrap{position:relative;max-width:360px;width:100%}
+.search-wrap i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none}
+.search-wrap input{width:100%;padding:11px 14px 11px 40px;border:1.5px solid var(--line);border-radius:11px;background:var(--surface-2);font-size:13px;color:var(--text);transition:all .15s}
+.search-wrap input:focus{outline:none;border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 4px rgba(0,191,255,.1)}
+.user-list{display:flex;flex-direction:column;gap:8px}
+.user-card{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:16px;align-items:center;padding:14px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);cursor:pointer;transition:all .18s cubic-bezier(.16,1,.3,1);overflow:hidden}
+.user-card:hover{border-color:var(--primary);box-shadow:0 6px 20px rgba(0,191,255,.1);transform:translateX(3px)}
+.user-avatar{width:56px;height:56px;border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;letter-spacing:-.02em;box-shadow:0 6px 14px rgba(0,0,0,.1);flex-shrink:0}
+.user-main{min-width:0;overflow:hidden}
+.user-main b{display:block;font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.01em;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-2)}
+.user-sub span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.user-meta{display:flex;gap:12px;margin-top:5px;font-size:10.5px;color:var(--muted);font-family:'SF Mono',Menlo,monospace}
+.user-meta span{display:inline-flex;align-items:center;gap:4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-status{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;min-width:80px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;line-height:1;white-space:nowrap}
+.badge.green{background:var(--success-soft);color:#065f46}
+.badge.red{background:var(--danger-soft);color:#991b1b}
+.badge.yellow{background:var(--warning-soft);color:#92400e}
+.badge.gray{background:#f1f5f9;color:#475569}
+.expiry-info{font-size:10px;font-weight:700;white-space:nowrap}
+.expiry-ok{color:var(--success)}
+.expiry-warn{color:var(--warning)}
+.expiry-bad{color:var(--danger)}
+.expiry-permanent{color:var(--primary)}
+mark{background:linear-gradient(90deg,var(--primary),var(--primary-2));color:#fff;padding:0 3px;border-radius:3px;font-weight:inherit}
+.modal-backdrop{position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-backdrop.show{display:flex}
+.modal{background:var(--surface);border-radius:22px;max-width:580px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 30px 80px rgba(10,22,40,.3);animation:slideUp .3s cubic-bezier(.16,1,.3,1)}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--surface);z-index:2;border-radius:22px 22px 0 0}
+.modal-head h3{font-size:17px;font-weight:800;letter-spacing:-.02em;margin:0}
+.modal-close{border:0;background:var(--surface-2);width:34px;height:34px;border-radius:10px;cursor:pointer;color:var(--text-2);font-size:18px;display:grid;place-items:center}
+.modal-body{padding:24px}
+.profile-header{display:flex;gap:18px;align-items:center;margin-bottom:24px;padding:18px;background:linear-gradient(135deg,var(--surface-2),var(--surface));border-radius:var(--radius);border:1px solid var(--line)}
+.profile-avatar{width:76px;height:76px;border-radius:20px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:30px;flex-shrink:0;box-shadow:0 10px 20px rgba(0,0,0,.1)}
+.profile-info h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+.profile-info p{font-size:13px;color:var(--text-2);margin:0 0 8px}
+.section{padding-top:18px;margin-top:18px;border-top:1px solid var(--line)}
+.section:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.section-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.section-title i{color:var(--primary)}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:13px;border-bottom:1px dashed #f1f5f9;gap:16px}
+.info-row:last-child{border-bottom:0}
+.info-row .info-key{color:var(--text-2);font-weight:500}
+.info-row .info-val{color:var(--text);font-weight:600;text-align:right;word-break:break-all;font-size:12.5px}
+.trx-item{padding:12px 14px;border-radius:11px;background:var(--surface-2);border-left:3px solid var(--primary);margin-bottom:8px;font-size:12px}
+.trx-item .trx-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:4px;font-weight:700}
+.trx-item .trx-head span:last-child{color:var(--success)}
+.trx-item .trx-meta{color:var(--muted);font-size:11px;font-family:'SF Mono',Menlo,monospace}
+.log-item{padding:10px 14px;background:var(--surface-2);border-radius:10px;border-left:3px solid var(--primary);margin-bottom:8px;font-size:11.5px}
+.log-item.suspicious{border-left-color:var(--danger);background:#fef2f2}
+.log-item .log-head{font-weight:700;margin-bottom:4px;color:var(--text);font-size:12px}
+.log-item .log-detail{color:var(--text-2);margin-bottom:4px}
+.log-item .log-meta{color:var(--muted);font-size:10px;font-family:'SF Mono',Menlo,monospace}
+.action-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.action-grid .btn{width:100%;padding:11px 14px}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.form-group{display:flex;flex-direction:column;gap:7px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px}
+.form-group label i{color:var(--primary)}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:12px 14px;background:var(--surface-2);border:1.5px solid var(--line);border-radius:11px;font-size:13px;color:var(--text);transition:all .15s}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{outline:none;border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 4px rgba(0,191,255,.1)}
+.form-group textarea{resize:vertical;min-height:100px;font-family:inherit}
+.form-hint{font-size:11px;color:var(--muted)}
+.maintenance-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.preview-frame{background:linear-gradient(135deg,#e0f2fe,#bae6fd);border-radius:var(--radius);padding:24px;display:flex;align-items:center;justify-content:center;min-height:360px}
+.preview-card{background:#fff;border-radius:20px;padding:32px 24px;max-width:320px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.1)}
+.preview-icon{width:72px;height:72px;margin:0 auto 18px;border-radius:50%;background:var(--warning-soft);display:grid;place-items:center;color:var(--warning);font-size:30px}
+.preview-card h3{font-size:18px;font-weight:800;color:#0c4a6e;margin:0 0 10px;letter-spacing:-.02em}
+.preview-card p{font-size:12px;line-height:1.6;color:var(--text-2);margin:0 0 14px}
+.preview-until{background:var(--warning-soft);color:#92400e;padding:10px 14px;border-radius:11px;font-size:11px;font-weight:700}
+.empty{padding:30px 15px;text-align:center;color:#94a3b8;font-size:12px}
+.spinner{width:36px;height:36px;border:3px solid rgba(0,191,255,.15);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.session-bar{position:fixed;bottom:16px;right:16px;background:var(--nav);color:#fff;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.2);z-index:100;display:flex;align-items:center;gap:8px}
+.session-bar b{color:var(--primary);font-family:'SF Mono',monospace}
+@media(max-width:900px){.main.shifted{margin-left:0}.stats-grid{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.maintenance-layout{grid-template-columns:1fr}.action-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.content{padding:16px}.topbar{height:60px;padding:0 16px}.stats-grid{grid-template-columns:1fr}.page-head-left h2{font-size:22px}.user-card{grid-template-columns:46px 1fr;padding:12px 14px;gap:12px}.user-avatar{width:46px;height:46px;font-size:18px}.user-status{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--line)}.login-card{padding:32px 24px}.profile-header{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+<div id="loginWrapper" class="login-shell">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo"><img src="/img.png" alt="Logo" onerror="this.style.display='none'"></div>
+      <h1>Panel Admin</h1>
+      <p>Masuk untuk mengelola RevanStore</p>
+    </div>
+    <div class="field">
+      <label><i class="fas fa-user"></i> EMAIL / USERNAME</label>
+      <div class="input-wrap"><i class="fas fa-user icon"></i><input id="loginEmail" placeholder="Masukkan email atau username" autocomplete="username"></div>
+    </div>
+    <div class="field">
+      <label><i class="fas fa-lock"></i> PASSWORD</label>
+      <div class="input-wrap"><i class="fas fa-key icon"></i><input id="loginPassword" type="password" placeholder="Masukkan password" autocomplete="current-password"></div>
+    </div>
+    <div class="field">
+      <label><i class="fas fa-shield-halved"></i> KODE AKSES</label>
+      <div class="input-wrap"><i class="fas fa-shield-halved icon"></i><input id="loginAccessKey" type="password" placeholder="Masukkan kode akses" autocomplete="off"></div>
+    </div>
+    <div class="captcha-wrap"><div class="g-recaptcha" data-sitekey="6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT"></div></div>
+    <button id="btnLogin" class="login-btn" onclick="loginAdmin()"><i class="fas fa-sign-in-alt"></i> Masuk ke Panel</button>
+    <div id="loginMsg" class="login-msg"></div>
+    <div class="login-footer"><i class="fas fa-info-circle"></i> Sesi admin aktif 3 hari</div>
+  </div>
+</div>
+
+<div id="appContainer" class="app">
+  <div id="drawerBackdrop" class="modal-backdrop" onclick="closeSidebar()"></div>
+  <aside id="sidebar" class="sidebar">
+    <div class="brand">
+      <img src="/img.png" alt="" onerror="this.style.background='#fff'">
+      <div class="brand-text"><b>RevanStore</b><span>Panel Admin</span></div>
+    </div>
+    <div class="nav-label">Utama</div>
+    <nav class="sidebar-nav">
+      <a data-page="dashboard" onclick="switchPage('dashboard')"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+      <a data-page="users" onclick="switchPage('users')"><i class="fa-solid fa-users"></i> Semua User</a>
+      <a data-page="add-user" onclick="switchPage('add-user')"><i class="fa-solid fa-user-plus"></i> Tambah User</a>
+      <a data-page="user-registrations" onclick="switchPage('user-registrations')"><i class="fa-solid fa-hourglass-half"></i> Menunggu Aktivasi</a>
+      <a data-page="approved-users" onclick="switchPage('approved-users')"><i class="fa-solid fa-user-check"></i> User Aktif</a>
+      <a data-page="rejected-users" onclick="switchPage('rejected-users')"><i class="fa-solid fa-user-xmark"></i> User Ditolak</a>
+      <a data-page="user-activity" onclick="switchPage('user-activity')"><i class="fa-solid fa-user-clock"></i> Aktivitas User</a>
+    </nav>
+    <div class="nav-label">Keamanan</div>
+    <nav class="sidebar-nav">
+      <a data-page="blocked" onclick="switchPage('blocked')"><i class="fa-solid fa-ban"></i> Blokir IP/FP</a>
+    </nav>
+    <div class="nav-label">Monitoring</div>
+    <nav class="sidebar-nav">
+      <a data-page="logs" onclick="switchPage('logs')"><i class="fa-solid fa-list-check"></i> Activity Log</a>
+      <a data-page="suspicious" onclick="switchPage('suspicious')"><i class="fa-solid fa-triangle-exclamation"></i> Mencurigakan</a>
+    </nav>
+    <div class="nav-label">Sistem</div>
+    <nav class="sidebar-nav">
+      <a data-page="maintenance" onclick="switchPage('maintenance')"><i class="fa-solid fa-screwdriver-wrench"></i> Maintenance</a>
+      <a class="logout-link" onclick="logoutAdmin()"><i class="fa-solid fa-power-off"></i> Logout</a>
+    </nav>
+  </aside>
+  <main id="mainContent" class="main">
+    <header class="topbar">
+      <div class="top-left">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="top-title" id="topTitle">Dashboard</div>
+      </div>
+      <div class="admin-chip">
+        <div class="admin-avatar" id="adminAvatar">A</div>
+        <span id="navbarUserName">Admin</span>
+      </div>
+    </header>
+    <div class="content">
+      <section id="page-dashboard" class="page active">
+        <div class="page-head"><div class="page-head-left"><h2>Dashboard</h2><p>Ringkasan sistem dan aktivitas terbaru</p></div><div class="page-actions"><button class="btn light" onclick="loadDashboard()"><i class="fa-solid fa-rotate"></i> Refresh</button></div></div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-head"><small>Total User</small><div class="stat-icon"><i class="fa-solid fa-users"></i></div></div><div class="stat-value" id="statTotal">0</div></div>
+          <div class="stat-card"><div class="stat-head"><small>User Aktif</small><div class="stat-icon"><i class="fa-solid fa-user-check"></i></div></div><div class="stat-value" id="statActive">0</div></div>
+          <div class="stat-card"><div class="stat-head"><small>Pending</small><div class="stat-icon"><i class="fa-solid fa-hourglass-half"></i></div></div><div class="stat-value" id="statPending">0</div></div>
+          <div class="stat-card"><div class="stat-head"><small>Banned</small><div class="stat-icon" style="background:var(--danger-soft);color:#991b1b"><i class="fa-solid fa-user-slash"></i></div></div><div class="stat-value" id="statBanned">0</div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div class="panel-title"><i class="fa-solid fa-clock-rotate-left"></i> Aktivitas Terbaru</div><button class="btn light sm" onclick="switchPage('logs')">Lihat Semua</button></div><div class="panel-body" id="dashboardLogs"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-users" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Semua User</h2><p>Klik user untuk melihat detail lengkap</p></div><div class="page-actions"><div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i><input id="userSearch" placeholder="Cari username / email (case-sensitive)..." oninput="renderUserList()"></div><button class="btn light" onclick="loadUsers()"><i class="fa-solid fa-rotate"></i> Refresh</button></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title"><i class="fa-solid fa-list"></i> Daftar User · <span id="userCount" style="color:var(--primary)">0</span></div></div><div class="panel-body"><div id="userList" class="user-list"><div class="empty">Memuat...</div></div></div></div>
+      </section>
+
+      <section id="page-add-user" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Tambah User</h2><p>Buat akun user baru dengan masa aktif</p></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title"><i class="fa-solid fa-user-plus"></i> Informasi User</div></div><div class="panel-body">
+          <div class="form-grid">
+            <div class="form-group"><label><i class="fa-solid fa-user"></i> Username</label><input id="newUsername" placeholder="minimal 3 karakter"></div>
+            <div class="form-group"><label><i class="fa-solid fa-lock"></i> Password</label><input id="newPassword" type="password" placeholder="minimal 6 karakter"></div>
+            <div class="form-group"><label><i class="fa-solid fa-envelope"></i> Email</label><input id="newEmail" type="email" placeholder="user@email.com"></div>
+            <div class="form-group"><label><i class="fa-solid fa-phone"></i> Nomor HP</label><input id="newPhone" placeholder="08xxxxxxxxxx"></div>
+            <div class="form-group"><label><i class="fa-solid fa-calendar-days"></i> Masa Aktif</label><select id="newExpiryDuration"><option value="1mgg">1 Minggu</option><option value="2mgg">2 Minggu</option><option value="3mgg">3 Minggu</option><option value="1bln" selected>1 Bulan</option><option value="2bln">2 Bulan</option><option value="1thn">1 Tahun</option><option value="permanen">Permanen</option></select><span class="form-hint" id="expiryPreview"></span></div>
+            <div class="form-group"><label><i class="fa-solid fa-user-tag"></i> Role</label><select id="newRole"><option value="User">User</option><option value="Admin">Admin</option></select></div>
+          </div>
+          <div class="page-actions" style="margin-top:22px"><button class="btn primary" onclick="submitAddUser()"><i class="fa-solid fa-plus"></i> Tambah User</button><button class="btn light" onclick="resetAddUserForm()"><i class="fa-solid fa-rotate-left"></i> Reset</button></div>
+        </div></div>
+      </section>
+
+      <section id="page-user-registrations" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Menunggu Aktivasi</h2><p>User yang mendaftar sendiri dan menunggu persetujuan admin</p></div><button class="btn light" onclick="loadPendingUsers()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+        <div class="panel"><div class="panel-body" id="pendingUsersList"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-approved-users" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>User Aktif</h2><p>Semua user yang sudah disetujui admin</p></div><button class="btn light" onclick="loadApprovedUsers()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+        <div class="panel"><div class="panel-body" id="approvedUsersList"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-rejected-users" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>User Ditolak</h2><p>Registrasi yang ditolak admin</p></div><button class="btn light" onclick="loadRejectedUsers()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+        <div class="panel"><div class="panel-body" id="rejectedUsersList"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-user-activity" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Aktivitas User</h2><p>Register, login, ban, force logout, dll</p></div><button class="btn light" onclick="loadUserActivity()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+        <div class="panel"><div class="panel-body" id="userActivityLog"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-blocked" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Blokir IP / FP</h2><p>Kelola akses yang diblokir</p></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title"><i class="fa-solid fa-network-wired"></i> Blocked IPs</div><button class="btn danger sm" onclick="blockNewIP()"><i class="fa-solid fa-plus"></i> Block IP</button></div><div class="panel-body" id="blockedIPsList"><div class="empty">Memuat...</div></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title"><i class="fa-solid fa-fingerprint"></i> Blocked Fingerprints</div><button class="btn danger sm" onclick="blockNewFP()"><i class="fa-solid fa-plus"></i> Block FP</button></div><div class="panel-body" id="blockedFPsList"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-logs" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Activity Log</h2><p>Semua aktivitas sistem</p></div><div class="page-actions"><button class="btn light" onclick="loadLogs()"><i class="fa-solid fa-rotate"></i> Refresh</button><button class="btn danger" onclick="clearLogs()"><i class="fa-solid fa-trash"></i> Hapus Semua</button></div></div>
+        <div class="panel"><div class="panel-body" id="allLogs"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-suspicious" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Aktivitas Mencurigakan</h2><p>Deteksi login mencurigakan, percobaan gagal, share akun</p></div><div class="page-actions"><button class="btn light" onclick="loadSuspicious()"><i class="fa-solid fa-rotate"></i> Refresh</button><button class="btn danger" onclick="clearSuspicious()"><i class="fa-solid fa-trash"></i> Hapus Semua</button></div></div>
+        <div class="panel"><div class="panel-body" id="suspiciousLogs"><div class="empty">Memuat...</div></div></div>
+      </section>
+
+      <section id="page-maintenance" class="page">
+        <div class="page-head"><div class="page-head-left"><h2>Maintenance</h2><p>Kontrol halaman maintenance website</p></div><div class="page-actions"><span class="badge" id="maintStatus">OFF</span></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title"><i class="fa-solid fa-screwdriver-wrench"></i> Kontrol Maintenance</div></div><div class="panel-body">
+          <div class="maintenance-layout">
+            <div>
+              <div class="form-group"><label><i class="fa-solid fa-heading"></i> Judul Halaman</label><input id="maintTitle" placeholder="SEDANG PERBAIKAN SISTEM"></div>
+              <div class="form-group" style="margin-top:14px"><label><i class="fa-solid fa-message"></i> Pesan Halaman</label><textarea id="maintMessage" rows="4" placeholder="Website sedang dalam perbaikan oleh admin..."></textarea></div>
+              <div class="form-group" style="margin-top:14px"><label><i class="fa-solid fa-clock"></i> Estimasi Selesai (opsional)</label><input id="maintUntil" type="datetime-local"></div>
+              <div class="page-actions" style="margin-top:20px"><button class="btn warning" onclick="enableMaintenance()"><i class="fa-solid fa-power-off"></i> Aktifkan</button><button class="btn danger" onclick="disableMaintenance()"><i class="fa-solid fa-circle-stop"></i> Nonaktifkan</button></div>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#334155;display:block;margin-bottom:10px"><i class="fa-solid fa-eye" style="color:var(--primary)"></i> Preview Halaman</label>
+              <div class="preview-frame"><div class="preview-card" id="maintenancePreview"></div></div>
+            </div>
+          </div>
+        </div></div>
+      </section>
+    </div>
+  </main>
+  <div id="sessionBar" class="session-bar hidden"><i class="fa-solid fa-clock"></i> Sesi berakhir dalam <b id="sessionCountdown">3d</b></div>
+</div>
+
+<div id="profileModal" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head"><h3>Detail User</h3><button class="modal-close" onclick="closeProfileModal()">&times;</button></div>
+    <div class="modal-body" id="profileBody"><div class="empty">Memuat...</div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script src="/pages/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Daftar Admin • Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,system-ui,sans-serif;background:linear-gradient(135deg,#f4fcff,#e7f9ff 48%,#fff);color:#123047;display:grid;place-items:center;padding:20px}
+.box{width:min(470px,100%);background:#fff;border:1px solid #d6eef7;border-radius:26px;padding:30px;box-shadow:0 25px 70px rgba(0,150,200,.14)}
+.logo{width:58px;height:58px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,#00bfff,#39d6ff);color:#fff;font-size:24px;font-weight:900;margin-bottom:18px}
+.box h1{margin:0 0 7px;font-size:25px}
+.box p{margin:0 0 22px;color:#688398;font-size:13px;line-height:1.6}
+.field{margin-top:13px}
+.field label{display:block;font-size:12px;font-weight:700;color:#55758a;margin-bottom:6px}
+.input{width:100%;padding:12px 13px;border:1px solid #cfe8f2;border-radius:12px;background:#fff;outline:none;color:#17384c;font:inherit}
+.input:focus{border-color:#00bfff;box-shadow:0 0 0 4px rgba(0,191,255,.12)}
+button{width:100%;margin-top:18px;border:0;border-radius:12px;padding:13px;background:linear-gradient(135deg,#00bfff,#08a9e7);color:#fff;font-weight:800;cursor:pointer;font-size:14px;font-family:inherit}
+button:disabled{opacity:.6;cursor:not-allowed}
+.msg{min-height:20px;margin-top:12px;text-align:center;font-size:12px;color:#e33f61}
+.hint{margin-top:16px;padding:11px 13px;border-radius:12px;background:#f1fbff;color:#568095;font-size:11px;line-height:1.5}
+.back{display:block;text-align:center;margin-top:15px;color:#00a8df;text-decoration:none;font-weight:700;font-size:13px}
+</style>
+</head>
+<body>
+<main class="box">
+  <div class="logo">R</div>
+  <h1>Daftar Admin</h1>
+  <p>Buat akun admin baru untuk Panel Admin.</p>
+
+  <div class="field">
+    <label>Kode Akses</label>
+    <input id="secretKey" class="input" type="password" placeholder="Masukkan kode akses" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label>Username Admin</label>
+    <input id="username" class="input" placeholder="contoh: revanstore" minlength="3" autocomplete="username">
+  </div>
+
+  <div class="field">
+    <label>Email Admin</label>
+    <input id="email" class="input" type="email" placeholder="admin@email.com" autocomplete="email">
+  </div>
+
+  <div class="field">
+    <label>Password</label>
+    <input id="password" class="input" type="password" minlength="8" placeholder="Minimal 8 karakter" autocomplete="new-password">
+  </div>
+
+  <div class="field">
+    <label>Konfirmasi Password</label>
+    <input id="confirmPassword" class="input" type="password" minlength="8" placeholder="Ulangi password" autocomplete="new-password">
+  </div>
+
+  <button id="btn" type="button">Daftar Admin</button>
+  <div id="msg" class="msg"></div>
+
+  <div class="hint">
+    Password minimal 8 karakter.<br>
+    Butuh kode akses khusus untuk membuat akun admin.
+  </div>
+
+  <a class="back" href="/admin">← Kembali ke Login Admin</a>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = '/api/admin-register';
+
+let _fpCache = '';
+async function getFingerprint() {
+  if (_fpCache) return _fpCache;
+  var fp = '';
+  fp += navigator.userAgent || '';
+  fp += navigator.language || '';
+  fp += (screen.width || 0) + 'x' + (screen.height || 0);
+  fp += screen.colorDepth || '';
+  fp += new Date().getTimezoneOffset();
+  fp += navigator.hardwareConcurrency || '';
+  fp += navigator.deviceMemory || '';
+  fp += navigator.platform || '';
+  _fpCache = CryptoJS.SHA256(fp).toString();
+  return _fpCache;
+}
+
+function setMsg(text, isError = true) {
+  $('msg').textContent = text || '';
+  $('msg').style.color = isError ? '#e33f61' : '#16a673';
+}
+
+async function register() {
+  const secretKey = $('secretKey').value.trim();
+  const username = $('username').value.trim();
+  const email = $('email').value.trim();
+  const password = $('password').value;
+  const confirmPassword = $('confirmPassword').value;
+
+  if (!secretKey) return setMsg('Kode akses wajib diisi');
+  if (!username || username.length < 3) return setMsg('Username minimal 3 karakter');
+  if (!/^[a-zA-Z0-9_.]+$/.test(username)) return setMsg('Username hanya huruf, angka, underscore, titik');
+  if (!email || !email.includes('@')) return setMsg('Email tidak valid');
+  if (!password || password.length < 8) return setMsg('Password minimal 8 karakter');
+  if (password !== confirmPassword) return setMsg('Konfirmasi password tidak cocok');
+
+  $('btn').disabled = true;
+
+  Swal.fire({
+    title: 'Mendaftarkan...',
+    html: 'Mohon tunggu sebentar',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => { Swal.showLoading(); }
+  });
+
+  try {
+    const fp = await getFingerprint();
+
+    const res = await fetch(API, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Fingerprint': fp
+      },
+      body: JSON.stringify({ secretKey, username, email, password, confirmPassword })
+    });
+
+    const data = await res.json();
+    Swal.close();
+
+    if (data.success) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'Admin Berhasil Dibuat',
+        html: `Username: <b>${username}</b><br>Login cuma bisa dari device ini.`,
+        confirmButtonText: 'Ke Login',
+        confirmButtonColor: '#00BFFF'
+      });
+      location.href = '/admin';
+      return;
+    }
+
+    setMsg(data.message || 'Pendaftaran gagal');
+    await Swal.fire({ icon: 'error', title: 'Gagal', text: data.message || 'Pendaftaran gagal', confirmButtonColor: '#ef4444' });
+  } catch (e) {
+    Swal.close();
+    setMsg('Gagal menghubungi server');
+    await Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal menghubungi server', confirmButtonColor: '#ef4444' });
+  } finally {
+    $('btn').disabled = false;
+  }
+}
+
+$('btn').addEventListener('click', register);
+['secretKey','username','email','password','confirmPassword'].forEach(id => {
+  $(id).addEventListener('keypress', e => { if (e.key === 'Enter') register(); });
+});
+</script>
+</body>
+</html>
