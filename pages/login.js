@@ -15,7 +15,6 @@ var globalBlockedUntil = null;
 
 var STORAGE_KEY = 'app_data';
 
-/* ==================== STORAGE ==================== */
 function storageSet(key, value) {
     try {
         var allData = storageGetAll();
@@ -39,7 +38,6 @@ function storageGetAll() {
     } catch (e) { return {}; }
 }
 
-/* ==================== BLOCK DATA (LOCAL) ==================== */
 function getBlockKey(username) {
     return 'blok_' + (username || 'global');
 }
@@ -80,7 +78,6 @@ function saveGlobalBlockData(data) {
     storageSet('global_block', data);
 }
 
-/* ==================== UTIL ==================== */
 function sanitize(str) {
     if (!str) return '';
     return String(str).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
@@ -108,7 +105,6 @@ function getBlockDuration(attempts) {
     return 0;
 }
 
-/* ==================== REST CALL ==================== */
 async function apiGet(url) {
     if (!fingerprint) fingerprint = await getFingerprint();
     var res = await fetch(url, {
@@ -138,7 +134,6 @@ async function apiPost(url, body) {
     try { return JSON.parse(text); } catch { return null; }
 }
 
-/* ==================== MAINTENANCE ==================== */
 async function periksaMaintenance() {
     try {
         var result = await apiGet(API_WEBSITE + '?action=maintenance-status');
@@ -172,7 +167,6 @@ function tampilkanHalamanMaintenance(dataMaintenance) {
     `;
 }
 
-/* ==================== BLOCKED ==================== */
 async function checkIfBlocked() {
     if (blockedChecked) return isBlocked;
     if (!fingerprint) fingerprint = await getFingerprint();
@@ -201,6 +195,31 @@ async function checkIfBlocked() {
     return isBlocked;
 }
 
+function tampilkanHalamanBlokir(alasan) {
+    var alasanText = sanitize(alasan || 'Akses Anda diblokir karena terdeteksi aktivitas yang melanggar aturan. Jika Anda merasa ini kesalahan, silakan hubungi admin untuk membuka akses.');
+
+    document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f7fb;font-family:'Inter','Segoe UI',Tahoma,sans-serif;-webkit-font-smoothing:antialiased;">
+            <div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;width:100%;max-width:440px;text-align:center;">
+                <div style="width:88px;height:88px;background:#fee2e2;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">
+                    <i class="fas fa-lock" style="font-size:36px;color:#ef4444;"></i>
+                </div>
+                <div style="display:inline-block;background:#fee2e2;color:#991b1b;border:2px solid #0F172A;border-radius:999px;padding:5px 14px;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;box-shadow:2px 2px 0 #0F172A;margin-bottom:18px;">
+                    <i class="fas fa-exclamation-circle" style="margin-right:4px;"></i> Diblokir
+                </div>
+                <h1 style="color:#0F172A;font-size:24px;font-weight:900;letter-spacing:-0.03em;line-height:1.2;margin:0 0 12px;">AKSES DITOLAK</h1>
+                <p style="color:#64748b;font-size:14px;font-weight:500;line-height:1.6;margin:0 0 20px;">Maaf, akses Anda diblokir.</p>
+                <div style="background:#fef3c7;color:#92400e;border:2px solid #0F172A;border-radius:10px;padding:14px 16px;font-weight:700;font-size:13px;line-height:1.5;box-shadow:2px 2px 0 #0F172A;text-align:left;">
+                    <div style="font-size:10px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#0F172A;margin-bottom:6px;">
+                        <i class="fas fa-circle-info" style="margin-right:4px;"></i> Alasan
+                    </div>
+                    ${alasanText}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function tampilkanHalamanBanAkses(until, alasan) {
     var untilText = sanitize((until || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(until).toLocaleString('id-ID')));
     var alasanText = sanitize(alasan || 'Akses Anda diblokir oleh admin karena terdeteksi pelanggaran aturan.');
@@ -208,37 +227,43 @@ function tampilkanHalamanBanAkses(until, alasan) {
     document.body.innerHTML = `
         <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f7fb;font-family:'Inter','Segoe UI',Tahoma,sans-serif;-webkit-font-smoothing:antialiased;">
             <div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;width:100%;max-width:440px;text-align:center;">
-
                 <div style="width:88px;height:88px;background:#fee2e2;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">
                     <i class="fas fa-ban" style="font-size:36px;color:#ef4444;"></i>
                 </div>
-
                 <div style="display:inline-block;background:#fee2e2;color:#991b1b;border:2px solid #0F172A;border-radius:999px;padding:5px 14px;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;box-shadow:2px 2px 0 #0F172A;margin-bottom:18px;">
                     <i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i> Akses Diblokir
                 </div>
-
-                <h1 style="color:#0F172A;font-size:24px;font-weight:900;letter-spacing:-0.03em;line-height:1.2;margin:0 0 12px;">
-                    AKSES DIBLOKIR
-                </h1>
-
-                <p style="color:#64748b;font-size:14px;font-weight:500;line-height:1.6;margin:0 0 20px;">
-                    Maaf, akses Anda diblokir oleh admin.
-                </p>
-
+                <h1 style="color:#0F172A;font-size:24px;font-weight:900;letter-spacing:-0.03em;line-height:1.2;margin:0 0 12px;">AKSES DIBLOKIR</h1>
+                <p style="color:#64748b;font-size:14px;font-weight:500;line-height:1.6;margin:0 0 20px;">Maaf, akses Anda diblokir oleh admin.</p>
                 <div style="background:#fef3c7;color:#92400e;border:2px solid #0F172A;border-radius:10px;padding:14px 16px;font-weight:700;font-size:13px;line-height:1.5;box-shadow:2px 2px 0 #0F172A;margin-bottom:14px;text-align:left;">
                     <div style="font-size:10px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#0F172A;margin-bottom:6px;">
                         <i class="fas fa-circle-info" style="margin-right:4px;"></i> Alasan
                     </div>
                     ${alasanText}
                 </div>
-
                 <div style="background:#fee2e2;color:#991b1b;border:2px solid #0F172A;border-radius:10px;padding:12px 16px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 #0F172A;">
                     <i class="fas fa-clock" style="margin-right:6px;"></i> Durasi: ${untilText}
                 </div>
-
             </div>
         </div>
     `;
+}
+
+function tampilkanPopupBanned(until) {
+    var untilText = sanitize((until || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(until).toLocaleString('id-ID')));
+    Swal.fire({
+        icon: 'error',
+        title: 'AKUN DIBANNED',
+        html: '<p>Maaf, akun Anda telah dibanned oleh admin.</p><p style="color:#dc2626;background:#fee2e2;padding:8px;border-radius:8px;"><b>Durasi: ' + untilText + '</b></p>',
+        confirmButtonText: '<i class="fab fa-whatsapp"></i> Hubungi Admin',
+        confirmButtonColor: '#25D366',
+        showCancelButton: true,
+        cancelButtonText: 'Tutup',
+        cancelButtonColor: '#64748b',
+        allowOutsideClick: false
+    }).then(function (r) {
+        if (r.isConfirmed) window.open('https://wa.me/' + WHATSAPP_NUMBER + '?text=Assalamualaikum%20admin%2C%20akun%20saya%20dibanned', '_blank');
+    });
 }
 
 function tampilkanPopupDitangguhkan() {
@@ -273,7 +298,6 @@ function tampilkanPopupBelumAktif() {
     });
 }
 
-/* ==================== ALERT / LOADING ==================== */
 function showAlert(message, type, duration) {
     type = type || 'info';
     duration = duration || 2500;
@@ -317,7 +341,6 @@ function updatePasswordCounter() {
     if (input && counter) counter.textContent = input.value.length + '/' + MAX_PASSWORD_LENGTH;
 }
 
-/* ==================== EXPIRY CHECK ==================== */
 function parseDate(dateStr) {
     if (!dateStr) return null;
     var parts = dateStr.split('/');
@@ -349,7 +372,6 @@ function checkAccountExpiry(user) {
     return { expired: expired, daysLeft: daysLeft };
 }
 
-/* ==================== LOGIN ==================== */
 async function login() {
     if (loginInProgress) return;
     loginInProgress = true;
@@ -404,7 +426,7 @@ async function login() {
             isBlocked = true;
             storageSet('perangkat_diblokir', 'true');
             hideLoading();
-            tampilkanHalamanBlokir();
+            tampilkanHalamanBlokir(result.reason || result.alasan || null);
             loginInProgress = false;
             return;
         }
@@ -418,7 +440,7 @@ async function login() {
 
         if (result && result.banAkses) {
             hideLoading();
-            tampilkanHalamanBanAkses(result.banAksesUntil || 0);
+            tampilkanHalamanBanAkses(result.banAksesUntil || 0, result.reason || result.alasan || null);
             loginInProgress = false;
             return;
         }
@@ -485,7 +507,6 @@ async function login() {
             return;
         }
 
-        /* ---------- LOGIN GAGAL ---------- */
         var globalBlock = getGlobalBlockData();
         globalBlock.attempts += 1;
 
@@ -537,7 +558,6 @@ async function login() {
     loginInProgress = false;
 }
 
-/* ==================== AUTO SESSION ==================== */
 function autoCheckSession() {
     var saved = storageGet('sesi_pengguna');
     if (!saved) return;
@@ -554,7 +574,6 @@ function autoCheckSession() {
     }
 }
 
-/* ==================== INIT ==================== */
 document.addEventListener('DOMContentLoaded', async function () {
     autoCheckSession();
 
