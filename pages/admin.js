@@ -39,11 +39,7 @@ const StorageVault = (function () {
         const res = await fetch(KEY_ENDPOINT, {
           method: 'POST',
           credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Fingerprint': fp,
-            'X-CSRF-Token': _getCSRF()
-          },
+          headers: { 'Content-Type': 'application/json', 'X-Fingerprint': fp, 'X-CSRF-Token': _getCSRF() },
           body: JSON.stringify({})
         });
         if (!res.ok) return null;
@@ -117,7 +113,10 @@ function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-/* ─── Toast & Confirm — versi lebih keren ─── */
+/* ─── Neo-Brut Swal Helper ─── */
+const NEO_INPUT_STYLE = 'width:100%;padding:12px 14px;border:2px solid #0F172A;border-radius:10px;font-size:14px;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A;outline:none;font-family:inherit';
+const NEO_SELECT_STYLE = 'width:100%;padding:12px 14px;border:2px solid #0F172A;border-radius:10px;font-size:14px;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A;outline:none;font-family:inherit;cursor:pointer';
+
 const SwalTheme = {
   confirmButtonColor: '#00BFFF',
   cancelButtonColor: '#64748b',
@@ -127,8 +126,7 @@ const SwalTheme = {
     title: 'neo-swal-title',
     htmlContainer: 'neo-swal-html',
     confirmButton: 'neo-swal-btn',
-    cancelButton: 'neo-swal-btn-cancel',
-    input: 'neo-swal-input'
+    cancelButton: 'neo-swal-btn-cancel'
   }
 };
 
@@ -136,9 +134,7 @@ function toast(title, text = '', icon = 'success') {
   if (!window.Swal) return alert(title);
   return Swal.fire({
     ...SwalTheme,
-    icon,
-    title,
-    text,
+    icon, title, text,
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
@@ -166,6 +162,19 @@ async function confirmBox(text) {
   }
   return confirm(text);
 }
+
+/* ─── DURASI MAP — untuk semua konversi durasi ke ms/jam/hari ─── */
+const DURATION_MAP = {
+  '1j': { ms: 3600000, label: '1 Jam' },
+  '2j': { ms: 7200000, label: '2 Jam' },
+  '3h': { ms: 3 * 86400000, label: '3 Hari' },
+  '1mgg': { ms: 7 * 86400000, label: '1 Minggu' },
+  '2mgg': { ms: 14 * 86400000, label: '2 Minggu' },
+  '1bln': { ms: 30 * 86400000, label: '1 Bulan' },
+  '2bln': { ms: 60 * 86400000, label: '2 Bulan' },
+  '1thn': { ms: 365 * 86400000, label: '1 Tahun' },
+  'permanen': { ms: 0, label: 'Permanen' }
+};
 
 let _fpCache = '';
 async function getFingerprint() {
@@ -196,10 +205,7 @@ function setMsg(id, text, ok = false) {
 
 async function request(action, payload = {}) {
   const fp = await getFingerprint();
-  const headers = {
-    'Content-Type': 'application/json',
-    'X-Fingerprint': fp
-  };
+  const headers = { 'Content-Type': 'application/json', 'X-Fingerprint': fp };
   const csrf = getCookie('csrf_token');
   if (csrf) headers['X-CSRF-Token'] = csrf;
 
@@ -270,12 +276,8 @@ async function loginAdmin() {
   if (!accessKey) return toast('Isi kode akses', '', 'warning');
 
   let captchaToken = '';
-  try {
-    await loadRecaptcha();
-    captchaToken = window.grecaptcha.getResponse();
-  } catch (e) {
-    return toast(e.message, '', 'error');
-  }
+  try { await loadRecaptcha(); captchaToken = window.grecaptcha.getResponse(); }
+  catch (e) { return toast(e.message, '', 'error'); }
   if (!captchaToken) return toast('Centang reCAPTCHA dulu', '', 'warning');
 
   $('btnLogin').disabled = true;
@@ -439,7 +441,6 @@ function switchPage(page) {
   if (f[page]) f[page]();
 }
 
-/* ─── Skeleton loader keren ─── */
 function skeletonRows(n = 4) {
   let h = '';
   for (let i = 0; i < n; i++) {
@@ -458,7 +459,14 @@ function ensureShimmerStyle() {
   if (document.getElementById('neo-shimmer-style')) return;
   const s = document.createElement('style');
   s.id = 'neo-shimmer-style';
-  s.textContent = `@keyframes neoShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}`;
+  s.textContent = `@keyframes neoShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    .neo-swal-popup{border:2px solid #0F172A !important;border-radius:14px !important;box-shadow:6px 6px 0 #0F172A !important;font-family:'Inter',sans-serif !important}
+    .neo-swal-title{font-weight:900 !important;letter-spacing:-0.02em !important;color:#0F172A !important}
+    .neo-swal-html{font-weight:500 !important;color:#475569 !important}
+    .neo-swal-btn{background:#00BFFF !important;border:2px solid #0F172A !important;border-radius:10px !important;font-weight:800 !important;box-shadow:3px 3px 0 #0F172A !important;text-transform:uppercase !important;letter-spacing:0.04em !important}
+    .neo-swal-btn-cancel{background:#fff !important;color:#0F172A !important;border:2px solid #0F172A !important;border-radius:10px !important;font-weight:800 !important;box-shadow:3px 3px 0 #0F172A !important;text-transform:uppercase !important}
+    .swal2-input,.swal2-select,.swal2-textarea{border:2px solid #0F172A !important;border-radius:10px !important;box-shadow:2px 2px 0 #0F172A !important;font-weight:600 !important;font-family:'Inter',sans-serif !important}
+  `;
   document.head.appendChild(s);
 }
 
@@ -562,9 +570,7 @@ function renderUserList() {
         <div class="user-main">
           <b>${usernameHl}</b>
           <div class="user-sub">
-            <span>${emailHl}</span>
-            <span>·</span>
-            <span>${esc(u.role || 'User')}</span>
+            <span>${emailHl}</span><span>·</span><span>${esc(u.role || 'User')}</span>
           </div>
           <div class="user-meta">
             <span><i class="fa-solid fa-network-wired"></i> ${esc(lastIP)}</span>
@@ -694,18 +700,18 @@ async function askDuration(action, username) {
     'ban-akses': 'Ban Akses',
     'force-logout': 'Tangguhkan'
   };
+
+  const durationOptions = Object.entries(DURATION_MAP).map(([k, v]) =>
+    `<option value="${k}" ${k === 'permanen' ? 'selected' : ''}>${v.label}</option>`
+  ).join('');
+
   const r = await Swal.fire({
     ...SwalTheme,
     title: titleMap[action] || 'Pilih Durasi',
     html: `
-      <p style="font-size:13px;color:#64748b;margin:0 0 14px;font-weight:600">Pilih durasi untuk <b style="color:#0F172A">${esc(username)}</b>:</p>
-      <select id="swalDuration" style="display:flex;width:100%;padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A">
-        <option value="1h">1 Jam</option>
-        <option value="2h">2 Jam</option>
-        <option value="3h">3 Jam</option>
-        <option value="permanent" selected>Permanen</option>
-      </select>
-      <input id="swalReason" placeholder="Alasan (opsional)" style="margin-top:12px;width:100%;padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A">
+      <p style="font-size:13px;color:#64748b;margin:0 0 16px;font-weight:600;text-align:left">Pilih durasi untuk <b style="color:#0F172A">${esc(username)}</b>:</p>
+      <select id="swalDuration" style="${NEO_SELECT_STYLE};margin-bottom:12px">${durationOptions}</select>
+      <input id="swalReason" placeholder="Alasan (opsional)" style="${NEO_INPUT_STYLE}">
     `,
     showCancelButton: true,
     confirmButtonText: 'Lanjutkan',
@@ -752,19 +758,19 @@ async function doUserAction(action, username) {
 async function editUserPrompt(username) {
   const u = usersCache.find(x => x.username === username);
   if (!u) return;
-  const inputStyle = 'width:100%;padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A;margin:6px 0';
   const r = await Swal.fire({
     ...SwalTheme,
     title: 'Edit User',
     html: `
-      <input id="swalEmail" placeholder="Email" value="${esc(u.email || '')}" style="${inputStyle}">
-      <input id="swalPhone" placeholder="No HP" value="${esc(u.phone || '')}" style="${inputStyle}">
-      <input id="swalExpiry" type="date" value="${esc(u.expiry_date || '')}" style="${inputStyle}">
-      <select id="swalRole" style="${inputStyle}">
+      <input id="swalEmail" placeholder="Email" value="${esc(u.email || '')}" style="${NEO_INPUT_STYLE};margin:6px 0">
+      <input id="swalPhone" placeholder="No HP" value="${esc(u.phone || '')}" style="${NEO_INPUT_STYLE};margin:6px 0">
+      <input id="swalExpiry" type="date" value="${esc(u.expiry_date || '')}" style="${NEO_INPUT_STYLE};margin:6px 0">
+      <select id="swalRole" style="${NEO_SELECT_STYLE};margin:6px 0">
         <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
         <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
       </select>
-      <input id="swalPassword" type="password" placeholder="Password baru (opsional)" style="${inputStyle}">`,
+      <input id="swalPassword" type="password" placeholder="Password baru (opsional)" style="${NEO_INPUT_STYLE};margin:6px 0">
+    `,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: 'Simpan',
@@ -790,29 +796,19 @@ function updateExpiryPreview() {
   const sel = $('newExpiryDuration');
   const preview = $('expiryPreview');
   if (!sel || !preview) return;
+  const d = DURATION_MAP[sel.value];
+  if (!d) { preview.textContent = ''; return; }
+  if (d.ms === 0) {
+    preview.textContent = '→ Tanpa batas waktu (permanen)';
+    return;
+  }
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const map = {
-    '1mgg': 7,
-    '2mgg': 14,
-    '3mgg': 21,
-    '1bln': 30,
-    '2bln': 60,
-    '1thn': 365,
-    'permanen': -1
-  };
-  const days = map[sel.value];
-  if (days === -1) {
-    preview.textContent = '→ Tanpa batas waktu (permanen)';
-  } else if (days) {
-    const t = new Date(now.getTime() + days * 86400000);
-    const y = t.getFullYear();
-    const m = String(t.getMonth() + 1).padStart(2, '0');
-    const d = String(t.getDate()).padStart(2, '0');
-    preview.textContent = '→ Sampai ' + y + '-' + m + '-' + d + ' (' + days + ' hari)';
-  } else {
-    preview.textContent = '';
-  }
+  const t = new Date(now.getTime() + d.ms);
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, '0');
+  const dd = String(t.getDate()).padStart(2, '0');
+  preview.textContent = '→ Sampai ' + y + '-' + m + '-' + dd + ' (' + d.label + ')';
 }
 
 async function submitAddUser() {
@@ -828,17 +824,16 @@ async function submitAddUser() {
   if (!email || !email.includes('@')) return toast('Email tidak valid', '', 'warning');
   if (!phone || phone.length < 10) return toast('No HP minimal 10 digit', '', 'warning');
 
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const daysMap = {
-    '1mgg': 7, '2mgg': 14, '3mgg': 21,
-    '1bln': 30, '2bln': 60, '1thn': 365, 'permanen': -1
-  };
-  const days = daysMap[expiry_duration] || 30;
+  const d = DURATION_MAP[expiry_duration];
+  if (!d) return toast('Durasi tidak valid', '', 'warning');
+
   let expiry_date;
-  if (days === -1) expiry_date = '9999-12-31';
-  else {
-    const t = new Date(now.getTime() + days * 86400000);
+  if (d.ms === 0) {
+    expiry_date = '9999-12-31';
+  } else {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const t = new Date(now.getTime() + d.ms);
     expiry_date = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
   }
 
@@ -848,6 +843,7 @@ async function submitAddUser() {
     if (r.success) { resetAddUserForm(); await loadUsers(); switchPage('users'); }
   } catch (e) { await toast('Gagal', e.message, 'error'); }
 }
+
 function resetAddUserForm() {
   ['newUsername', 'newPassword', 'newEmail', 'newPhone'].forEach(id => { $(id).value = ''; });
   $('newExpiryDuration').value = '1bln';
@@ -905,41 +901,47 @@ async function loadBlocked() {
       : '<div class="empty">Tidak ada FP diblokir</div>';
   } catch (e) { await toast('Gagal memuat data blokir', e.message, 'error'); }
 }
+
 async function blockNewIP() {
   const r = await Swal.fire({
     ...SwalTheme,
     title: 'Block IP',
-    input: 'text',
-    inputPlaceholder: 'contoh: 202.56.166.100',
-    inputAttributes: { style: 'padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;box-shadow:2px 2px 0 #0F172A' },
+    html: `<p style="font-size:13px;color:#64748b;margin:0 0 14px;font-weight:600;text-align:left">Masukkan IP yang ingin diblokir:</p>
+           <input id="swalIP" placeholder="contoh: 202.56.166.100" style="${NEO_INPUT_STYLE}">`,
     showCancelButton: true,
     confirmButtonText: 'Block',
-    confirmButtonColor: '#ef4444'
+    cancelButtonText: 'Batal',
+    confirmButtonColor: '#ef4444',
+    preConfirm: () => document.getElementById('swalIP').value.trim()
   });
   if (!r.isConfirmed || !r.value) return;
-  try { await request('block-ip', { ip: r.value.trim() }); await toast('IP diblokir', '', 'success'); loadBlocked(); }
+  try { await request('block-ip', { ip: r.value }); await toast('IP diblokir', '', 'success'); loadBlocked(); }
   catch (e) { await toast('Gagal', e.message, 'error'); }
 }
+
 async function unblockIP(ip) {
   if (!await confirmBox('Unblock IP ' + ip + '?')) return;
   try { await request('unblock-ip', { ip }); await toast('IP diunblock', '', 'success'); loadBlocked(); }
   catch (e) { await toast('Gagal', e.message, 'error'); }
 }
+
 async function blockNewFP() {
   const r = await Swal.fire({
     ...SwalTheme,
     title: 'Block FP',
-    input: 'text',
-    inputPlaceholder: 'fingerprint string',
-    inputAttributes: { style: 'padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;box-shadow:2px 2px 0 #0F172A' },
+    html: `<p style="font-size:13px;color:#64748b;margin:0 0 14px;font-weight:600;text-align:left">Masukkan fingerprint yang ingin diblokir:</p>
+           <input id="swalFP" placeholder="fingerprint string" style="${NEO_INPUT_STYLE}">`,
     showCancelButton: true,
     confirmButtonText: 'Block',
-    confirmButtonColor: '#ef4444'
+    cancelButtonText: 'Batal',
+    confirmButtonColor: '#ef4444',
+    preConfirm: () => document.getElementById('swalFP').value.trim()
   });
   if (!r.isConfirmed || !r.value) return;
-  try { await request('block-fp', { fingerprint: r.value.trim() }); await toast('FP diblokir', '', 'success'); loadBlocked(); }
+  try { await request('block-fp', { fingerprint: r.value }); await toast('FP diblokir', '', 'success'); loadBlocked(); }
   catch (e) { await toast('Gagal', e.message, 'error'); }
 }
+
 async function unblockFP(fp) {
   if (!await confirmBox('Unblock FP ini?')) return;
   try { await request('unblock-fp', { fingerprint: fp }); await toast('FP diunblock', '', 'success'); loadBlocked(); }
@@ -994,16 +996,29 @@ async function clearSuspicious() {
 function renderMaintenancePreview() {
   const title = $('maintTitle').value.trim() || 'SEDANG PERBAIKAN SISTEM';
   const message = $('maintMessage').value.trim() || 'Website sedang dalam perbaikan oleh admin. Silakan kembali beberapa saat lagi.';
-  const until = $('maintUntil').value ? new Date($('maintUntil').value).getTime() : 0;
-  const untilText = until
-    ? 'Estimasi selesai: ' + new Date(until).toLocaleString('id-ID')
-    : 'Mohon maaf atas ketidaknyamanan ini.';
+  const durKey = $('maintDuration').value;
+  const d = DURATION_MAP[durKey];
+  let untilText;
+  if (durKey === '0' || !d) {
+    untilText = 'Mohon maaf atas ketidaknyamanan ini.';
+  } else if (d.ms === 0) {
+    untilText = 'Durasi: Permanen';
+  } else {
+    const t = Date.now() + d.ms;
+    untilText = 'Estimasi selesai: ' + new Date(t).toLocaleString('id-ID');
+  }
   $('maintenancePreview').innerHTML = `
     <div class="preview-icon"><i class="fa-solid fa-screwdriver-wrench"></i></div>
     <h3>${esc(title)}</h3>
     <p>${esc(message)}</p>
     <div class="preview-until">${esc(untilText)}</div>
   `;
+  const maintPreview = $('maintPreview');
+  if (maintPreview) {
+    if (durKey === '0' || !d) maintPreview.textContent = '→ Tidak ada estimasi waktu';
+    else if (d.ms === 0) maintPreview.textContent = '→ Permanen (sampai dinonaktifkan manual)';
+    else maintPreview.textContent = '→ Berakhir dalam ' + d.label;
+  }
 }
 
 async function loadMaintenance() {
@@ -1013,27 +1028,30 @@ async function loadMaintenance() {
     $('maintStatus').className = 'badge ' + (r.maintenance ? 'red' : 'green');
     $('maintTitle').value = r.title || '';
     $('maintMessage').value = r.message || '';
-    if (r.until) {
-      const d = new Date(Number(r.until));
-      const p = n => String(n).padStart(2, '0');
-      $('maintUntil').value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-    } else {
-      $('maintUntil').value = '';
-    }
+    $('maintDuration').value = r.until ? '1bln' : '0';
     renderMaintenancePreview();
   } catch (e) { await toast('Gagal memuat maintenance', e.message, 'error'); }
 }
+
 async function enableMaintenance() {
   const title = $('maintTitle').value.trim();
   const message = $('maintMessage').value.trim();
-  const until = $('maintUntil').value ? new Date($('maintUntil').value).getTime() : 0;
+  const durKey = $('maintDuration').value;
   if (!title || !message) return toast('Judul dan pesan wajib diisi', '', 'warning');
+
+  const d = DURATION_MAP[durKey];
+  let until = 0;
+  if (durKey !== '0' && d && d.ms > 0) {
+    until = Date.now() + d.ms;
+  }
+
   try {
     await request('set-maintenance', { maintenance: true, title, message, until });
     await toast('Maintenance aktif', '', 'success');
     loadMaintenance();
   } catch (e) { await toast('Gagal', e.message, 'error'); }
 }
+
 async function disableMaintenance() {
   if (!await confirmBox('Nonaktifkan maintenance?')) return;
   try {
@@ -1044,6 +1062,7 @@ async function disableMaintenance() {
 }
 
 async function boot() {
+  ensureShimmerStyle();
   try {
     const r = await request('me');
     if (r.success) {
@@ -1068,8 +1087,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sel.addEventListener('change', updateExpiryPreview);
     updateExpiryPreview();
   }
-  ['maintTitle', 'maintMessage', 'maintUntil'].forEach(id => {
+  ['maintTitle', 'maintMessage', 'maintDuration'].forEach(id => {
     const el = $(id);
     if (el) el.addEventListener('input', renderMaintenancePreview);
+    if (el) el.addEventListener('change', renderMaintenancePreview);
   });
 });
