@@ -45,12 +45,24 @@ async function getFingerprint() {
     var fp = '';
     fp += navigator.userAgent || '';
     fp += navigator.language || '';
-    fp += (screen.width || 0) + 'x' + (screen.height || 0);
-    fp += screen.colorDepth || '';
-    fp += new Date().getTimezoneOffset();
-    fp += navigator.hardwareConcurrency || '';
-    fp += navigator.deviceMemory || '';
     fp += navigator.platform || '';
+    fp += (screen.availWidth || 0) + 'x' + (screen.availHeight || 0);
+    fp += screen.colorDepth || '';
+    try { fp += Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    fp += navigator.hardwareConcurrency || '';
+    fp += navigator.maxTouchPoints || '0';
+    fp += (window.devicePixelRatio || 1);
+    try {
+        var canvas = document.createElement('canvas');
+        var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+            var di = gl.getExtension('WEBGL_debug_renderer_info');
+            if (di) {
+                fp += gl.getParameter(di.UNMASKED_VENDOR_WEBGL) || '';
+                fp += gl.getParameter(di.UNMASKED_RENDERER_WEBGL) || '';
+            }
+        }
+    } catch (e) {}
     const data = new TextEncoder().encode(fp);
     const digest = await crypto.subtle.digest('SHA-256', data);
     return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -345,28 +357,40 @@ function logout() {
 
 async function checkAuthWithServer() {
     try {
-        console.debug('[dashboard-auth] checking session', { path: location.pathname });
         var res = await apiGet(API_USER + '?action=check-status');
-        console.debug('[dashboard-auth] server response', { status: res && res.status, data: res && res.data });
-        var data = res && res.data;
+        var data = res.data;
 
-        if (!res || res.status === 401) {
-            console.warn('[dashboard-auth] session rejected', res && res.status);
+        if (res.status === 401) {
             redirectToLogin();
             return null;
         }
-        if (res.status >= 500 || !data) {
-            console.error('[dashboard-auth] server/unparseable response', res);
+
+        if (data && data.banned) {
+            showBannedAndLogout(data.bannedUntil || 0);
             return null;
         }
 
-        if (data.banned) { showBannedAndLogout(data.bannedUntil || 0); return null; }
-        if (data.banAkses) { showBanAksesAndLogout(data.banAksesUntil || 0); return null; }
-        if (data.forceLogout) { showSuspendedAndLogout(); return null; }
-        if (data.maintenance) { showMaintenancePage(data); return null; }
-        if (data.expired) { showExpiredAndLogout(); return null; }
+        if (data && data.banAkses) {
+            showBanAksesAndLogout(data.banAksesUntil || 0, data.reason);
+            return null;
+        }
 
-        if (data.valid && data.user) {
+        if (data && data.forceLogout) {
+            showSuspendedAndLogout();
+            return null;
+        }
+
+        if (data && data.maintenance) {
+            showMaintenancePage(data);
+            return null;
+        }
+
+        if (data && data.expired) {
+            showExpiredAndLogout();
+            return null;
+        }
+
+        if (data && data.valid && data.user) {
             currentUser = {
                 id: data.user.id,
                 username: data.user.username,
@@ -374,15 +398,13 @@ async function checkAuthWithServer() {
                 email: data.user.email || '',
                 expiry_date: data.user.expiry_date || ''
             };
-            console.debug('[dashboard-auth] session valid', { username: currentUser.username });
             return currentUser;
         }
 
-        console.warn('[dashboard-auth] invalid session payload', data);
         redirectToLogin();
         return null;
     } catch (e) {
-        console.error('[dashboard-auth] request failed', e);
+        redirectToLogin();
         return null;
     }
 }
@@ -411,12 +433,13 @@ function showBannedAndLogout(until) {
     });
 }
 
-function showBanAksesAndLogout(until) {
+function showBanAksesAndLogout(until, reason) {
     var untilText = (until || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(until).toLocaleString('id-ID'));
+    var reasonText = reason ? '<p style="color:#92400e;background:#fef3c7;padding:8px;border-radius:8px;"><b>Alasan:</b> ' + sanitize(reason) + '</p>' : '';
     Swal.fire({
         icon: 'error',
         title: 'AKSES DIBLOKIR',
-        html: '<p>Akses Anda diblokir oleh admin.</p><p style="color:#f59e0b;background:#fef3c7;padding:8px;border-radius:8px;"><b>Durasi: ' + sanitize(untilText) + '</b></p>',
+        html: '<p>Akses Anda diblokir oleh admin.</p>' + reasonText + '<p style="color:#f59e0b;background:#fef3c7;padding:8px;border-radius:8px;"><b>Durasi: ' + sanitize(untilText) + '</b></p>',
         confirmButtonText: 'OK',
         confirmButtonColor: '#ef4444',
         allowOutsideClick: false
