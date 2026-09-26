@@ -15,15 +15,25 @@ async function getFingerprint() {
     var fp = '';
     fp += navigator.userAgent || '';
     fp += navigator.language || '';
-    fp += (screen.width || 0) + 'x' + (screen.height || 0);
-    fp += screen.colorDepth || '';
-    fp += new Date().getTimezoneOffset();
-    fp += navigator.hardwareConcurrency || '';
-    fp += navigator.deviceMemory || '';
     fp += navigator.platform || '';
-    var data = new TextEncoder().encode(fp);
-    var digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    fp += (screen.availWidth || 0) + 'x' + (screen.availHeight || 0);
+    fp += screen.colorDepth || '';
+    try { fp += Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    fp += navigator.hardwareConcurrency || '';
+    fp += navigator.maxTouchPoints || '0';
+    fp += (window.devicePixelRatio || 1);
+    try {
+        var canvas = document.createElement('canvas');
+        var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+            var di = gl.getExtension('WEBGL_debug_renderer_info');
+            if (di) {
+                fp += gl.getParameter(di.UNMASKED_VENDOR_WEBGL) || '';
+                fp += gl.getParameter(di.UNMASKED_RENDERER_WEBGL) || '';
+            }
+        }
+    } catch (e) {}
+    return CryptoJS.MD5(fp).toString();
 }
 
 function sanitize(str) {
