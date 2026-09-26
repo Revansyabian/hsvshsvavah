@@ -56,76 +56,68 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
     }
   }
 
+  // ── Sharing Detection (FP + IP) ──
   const lockedFP = data.lockedFP || '';
   const lockedIP = data.lockedIP || '';
 
-  if (lockedFP && fp && lockedFP !== fp) {
-    data.forceLogout = true;
-    data.forceLogoutUntil = 0;
-    data.shareDetected = {
-      at: Date.now(),
-      prevFP: lockedFP,
-      newFP: fp,
-      prevIP: lockedIP,
-      newIP: ip,
-      type: 'fp_mismatch'
-    };
-    await saveUser(auth.user.id, {
-      ...data,
-      username: row.username,
-      role: row.role,
-      status: row.status,
-      forceLogout: true
-    });
-    await logActivity(row.username, 'sharing_detected',
-      `FP beda. Prev: ${lockedFP.slice(0, 16)}..., New: ${fp.slice(0, 16)}...`, ip, fp);
-    await detectSuspicious(auth.user, 'sharing_detected', ip, fp,
-      `User login dari device lain (FP beda). Prev: ${lockedFP.slice(0, 12)}..., New: ${fp.slice(0, 12)}...`);
-    return res.status(200).json({
-      valid: false,
-      forceLogout: true,
-      share: true,
-      message: 'Akun terdeteksi login dari perangkat lain. Silakan hubungi admin.'
-    });
-  }
-
-  if (lockedIP && ip && lockedIP !== ip) {
-    data.forceLogout = true;
-    data.forceLogoutUntil = 0;
-    data.shareDetected = {
-      at: Date.now(),
-      prevIP: lockedIP,
-      newIP: ip,
-      type: 'ip_mismatch'
-    };
-    await saveUser(auth.user.id, {
-      ...data,
-      username: row.username,
-      role: row.role,
-      status: row.status,
-      forceLogout: true
-    });
-    await logActivity(row.username, 'sharing_detected',
-      `IP beda. Prev: ${lockedIP}, New: ${ip}`, ip, fp);
-    await detectSuspicious(auth.user, 'sharing_detected', ip, fp,
-      `User login dari jaringan lain (IP beda). Prev: ${lockedIP}, New: ${ip}`);
-    return res.status(200).json({
-      valid: false,
-      forceLogout: true,
-      share: true,
-      message: 'Akun terdeteksi login dari jaringan lain. Silakan hubungi admin.'
-    });
-  }
-
-  if (fp && ip && (lockedFP !== fp || lockedIP !== ip)) {
+  // Grace: belum ada FP → set
+  if (!lockedFP && fp) {
     data.lockedFP = fp;
-    data.lockedIP = ip;
-    await saveUser(auth.user.id, {
-      ...data,
-      username: row.username,
-      role: row.role,
-      status: row.status
-    });
+    data.lockedIP = ip || '';
+    data.lockedAt = Date.now();
+    await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
+  }
+  else if (lockedFP && fp) {
+    const fpSame = lockedFP === fp;
+    const ipSame = !lockedIP || !ip || lockedIP === ip;
+
+    if (fpSame) {
+      // FP sama, IP beda (pindah WiFi) → update IP
+      if (ip && lockedIP !== ip) {
+        data.lockedIP = ip;
+        data.ipChangeAt = Date.now();
+        await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
+      }
+    }
+    else if (ipSame) {
+      // FP beda tapi IP sama → browser update / rotate → migrate FP (jangan kick)
+      data.lockedFP = fp;
+      data.fpChangedAt = Date.now();
+      data.fpChangedFrom = lockedFP;
+      await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
+      await logActivity(row.username, 'fp_rotated',
+        `FP berubah tapi IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${fp.slice(0, 16)}...`, ip, fp);
+    }
+    else {
+      // FP & IP dua-duanya beda → SHARING
+      data.forceLogout = true;
+      data.forceLogoutUntil = 0;
+      data.shareDetected = {
+        at: Date.now(),
+        prevFP: lockedFP,
+        newFP: fp,
+        prevIP: lockedIP,
+        newIP: ip,
+        type: 'fp_and_ip_mismatch'
+      };
+      await saveUser(auth.user.id, {
+        ...data,
+        username: row.username,
+        role: row.role,
+        status: row.status,
+        forceLogout: true
+      });
+      await logActivity(row.username, 'sharing_detected',
+        `FP & IP beda. Prev FP: ${lockedFP.slice(0, 16)}..., New FP: ${fp.slice(0, 16)}..., Prev IP: ${lockedIP}, New IP: ${ip}`, ip, fp);
+      await detectSuspicious(auth.user, 'sharing_detected', ip, fp,
+        `Login dari device + jaringan lain. Silakan hubungi admin.`);
+      return res.status(200).json({
+        valid: false,
+        forceLogout: true,
+        share: true,
+        message: 'Akun terdeteksi login dari perangkat lain. Silakan hubungi admin.'
+      });
+    }
   }
 
   try { await trackUserIPFP(auth.user.id, ip, fp); } catch (e) {}
