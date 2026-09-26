@@ -8,111 +8,329 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Login - Top Up</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<meta name="theme-color" content="#0ea5e9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#00BFFF">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-body { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-.login-container { width: 100%; max-width: 420px; }
-.login-card { background: #fff; border-radius: 24px; padding: 45px 35px 35px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.08); animation: fadeIn 0.4s ease; margin: auto; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-.login-header { text-align: center; margin-bottom: 32px; }
-.login-logo {
-    width: 100px;
-    height: 100px;
-    border-radius: 22px;
-    margin: 0 auto 16px;
-    overflow: hidden;
+  :root {
+    --bg: #f4f7fb;
+    --surface: #FFFFFF;
+    --ink: #0F172A;
+    --ink-2: #1E293B;
+    --muted: #64748b;
+    --muted-2: #94a3b8;
+    --border: #0F172A;
+
+    --sky: #00BFFF;
+    --sky-dark: #0095CC;
+    --sky-soft: #E0F5FF;
+    --sky-focus: #F0FAFF;
+
+    --amber: #f59e0b;
+    --coral: #ef4444;
+
+    --radius: 12px;
+    --radius-sm: 10px;
+
+    --shadow: 5px 5px 0 var(--border);
+    --shadow-sm: 3px 3px 0 var(--border);
+    --shadow-xs: 2px 2px 0 var(--border);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f0f9ff;
-    border: 2px solid #e0f2fe;
-    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.15);
-}
-.login-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.login-logo .logo-placeholder { font-size: 48px; color: #0ea5e9; }
-.login-header h1 { color: #0c4a6e; font-size: 28px; font-weight: 700; }
-.login-header p { color: #64748b; font-size: 14px; margin-top: 6px; }
-.login-footer { margin-top: 28px; text-align: center; color: #94a3b8; font-size: 13px; padding-top: 18px; border-top: 1px solid #f1f5f9; }
-.login-footer a { color: #0ea5e9; text-decoration: none; font-weight: 600; }
-.login-footer a:hover { text-decoration: underline; }
-.login-links { display: flex; justify-content: space-between; margin-top: 16px; font-size: 13px; }
-.login-links a { color: #0ea5e9; text-decoration: none; font-weight: 600; }
-.login-links a:hover { text-decoration: underline; }
-.form-group { margin-bottom: 22px; }
-.form-group label { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: #475569; font-size: 13px; font-weight: 600; }
-.form-group label i { color: #0ea5e9; }
-.password-wrapper {
+    padding: 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .login-container { width: 100%; max-width: 440px; }
+
+  .login-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px 32px 32px;
+    box-shadow: var(--shadow);
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Header ──────────────────────────────────── */
+  .login-header { margin-bottom: 28px; }
+
+  .brand-line {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 18px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 22px;
+  }
+
+  .brand-text {
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .login-header h1 {
+    color: var(--ink);
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  .login-header p {
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 6px;
+  }
+
+  /* ─── Form ────────────────────────────────────── */
+  .form-group { margin-bottom: 20px; }
+
+  .form-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .form-group label i { color: var(--amber); font-size: 13px; }
+
+  .password-wrapper {
     position: relative;
     display: flex;
     align-items: center;
     width: 100%;
-}
-.form-input {
+  }
+
+  .form-input {
     width: 100%;
-    padding: 14px 18px;
-    background: #f8fafc;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    color: #1e293b;
+    padding: 13px 16px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
     font-size: 15px;
-    transition: all 0.2s ease;
+    font-weight: 500;
+    transition: transform 100ms ease, box-shadow 100ms ease, border-color 150ms ease, background-color 150ms ease;
     padding-right: 48px;
-}
-.form-input:focus { outline: none; border-color: #0ea5e9; background: #fff; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); }
-.form-input::placeholder { color: #94a3b8; }
-#togglePassword {
+    outline: none;
+    box-shadow: var(--shadow-xs);
+  }
+
+  .form-input::placeholder { color: var(--muted-2); font-weight: 500; }
+
+  .form-input:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .form-input:focus {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-sm);
+    border-color: var(--sky);
+    background: var(--sky-focus);
+  }
+
+  #togglePassword {
     position: absolute;
-    right: 16px;
+    right: 14px;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    color: #94a3b8;
-    font-size: 18px;
-    transition: 0.2s;
+    color: var(--muted-2);
+    font-size: 17px;
+    transition: color 150ms;
     z-index: 2;
-}
-#togglePassword:hover { color: #0ea5e9; }
-.btn { padding: 14px 24px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px; color: #fff; letter-spacing: 0.3px; width: 100%; }
-.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); }
-.btn:active { transform: scale(0.97); }
-.btn-primary { background: #0ea5e9; }
-.btn-primary:hover { background: #0284c7; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.recaptcha-wrapper { margin-bottom: 20px; display: flex; justify-content: center; }
-.password-counter { text-align: right; font-size: 11px; color: #94a3b8; margin-top: 4px; }
-.spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid #0ea5e9; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@media(max-width:480px) { .login-card { padding: 30px 22px; } .login-header h1 { font-size: 22px; } .login-logo { width: 80px; height: 80px; border-radius: 18px; } }
+  }
+
+  #togglePassword:hover { color: var(--sky); }
+
+  .password-counter {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted-2);
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .login-footer {
+    margin: 16px 0 20px;
+    padding: 12px 16px;
+    background: var(--sky-soft);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+    text-align: center;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .login-footer i { color: var(--sky-dark); font-size: 14px; }
+
+  .recaptcha-wrapper { margin: 0 0 20px; display: flex; justify-content: center; }
+
+  .btn {
+    padding: 14px 24px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 100ms ease, box-shadow 100ms ease, background-color 150ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #fff;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .btn-primary {
+    background: var(--sky);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--sky-dark);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--border);
+  }
+
+  .btn-primary:focus-visible {
+    outline: 2px solid var(--sky);
+    outline-offset: 2px;
+  }
+
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .login-links {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+
+  .login-links a {
+    text-decoration: none;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: color 150ms;
+    color: var(--sky-dark);
+  }
+
+  .login-links a:hover {
+    color: var(--sky);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .login-links a.link-warning { color: var(--coral); }
+  .login-links a.link-warning:hover { color: #dc2626; }
+
+  #loadingOverlay {
+    background: rgba(15, 23, 42, 0.7) !important;
+    backdrop-filter: blur(3px);
+  }
+
+  #loadingOverlay > div {
+    background: var(--surface) !important;
+    border: 2px solid var(--border);
+    border-radius: var(--radius) !important;
+    box-shadow: var(--shadow);
+    color: var(--ink) !important;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--sky-soft);
+    border-top: 3px solid var(--sky);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto;
+  }
+
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  #loadingMessage { color: var(--ink) !important; }
+
+  @media (max-width: 480px) {
+    .login-card { padding: 28px 22px 24px; }
+    .login-header h1 { font-size: 24px; }
+  }
 </style>
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
 
-<div id="loadingOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:center">
-    <div style="background:#1a1a2e;padding:30px 40px;border-radius:16px;text-align:center;color:#fff">
+<div id="loadingOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;justify-content:center;align-items:center;padding:20px;">
+    <div style="padding:32px 40px;text-align:center;">
         <div class="spinner"></div>
-        <p id="loadingMessage" style="margin-top:15px;font-size:14px">Memproses...</p>
+        <p id="loadingMessage" style="margin-top:15px;font-size:13px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Memproses...</p>
     </div>
 </div>
 
 <div class="login-container">
     <div class="login-card">
         <div class="login-header">
-            <div class="login-logo">
-                <img src="/img.png" alt="Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                <div class="logo-placeholder" style="display:none;">
-                    <i class="fas fa-cube"></i>
-                </div>
+            <div class="brand-line">
+                <span class="brand-text">Top Up</span>
             </div>
-            <h1>TOP UP</h1>
-            <p>Silakan login untuk melanjutkan</p>
+            <h1>Selamat datang</h1>
+            <p>Masuk untuk melanjutkan</p>
         </div>
+
         <div class="form-group">
             <label for="username"><i class="fas fa-user"></i> Username</label>
             <input type="text" id="username" placeholder="Masukkan username" class="form-input" autocomplete="username">
         </div>
-        <div class="form-group">
+
+        <div class="form-group" style="margin-bottom:0;">
             <label for="password"><i class="fas fa-lock"></i> Password</label>
             <div class="password-wrapper">
                 <input type="password" id="password" placeholder="Masukkan password" class="form-input" maxlength="20" autocomplete="current-password">
@@ -120,18 +338,23 @@ body { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%
             </div>
             <div class="password-counter"><span id="passwordCharCount">0/20</span></div>
         </div>
+
+        <div class="login-footer">
+            <i class="fas fa-info-circle"></i>
+            <span>Register dulu jika belum punya akun</span>
+        </div>
+
         <div class="recaptcha-wrapper">
             <div class="g-recaptcha" data-sitekey="6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT"></div>
         </div>
+
         <button class="btn btn-primary" id="btnLogin" onclick="login()">
-            <i class="fas fa-sign-in-alt"></i> LOGIN
+            <i class="fas fa-sign-in-alt"></i> Login
         </button>
+
         <div class="login-links">
-            <a href="/pages/reset-password"><i class="fas fa-key"></i> Lupa Password?</a>
+            <a href="/pages/reset-password" class="link-warning"><i class="fas fa-key"></i> Lupa Password?</a>
             <a href="/pages/register"><i class="fas fa-user-plus"></i> Register</a>
-        </div>
-        <div class="login-footer">
-            <p><i class="fas fa-info-circle"></i> Silakan register jika belum memiliki akun</p>
         </div>
     </div>
 </div>
