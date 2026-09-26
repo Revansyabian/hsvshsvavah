@@ -16,11 +16,10 @@
   --bg:#f4f7fb;--surface:#ffffff;--surface-2:#f8fafc;
   --text:#0f172a;--text-2:#475569;--muted:#94a3b8;
   --line:#0F172A;
-  --sky:#00BFFF;--sky-dark:#0095CC;--sky-soft:#E0F5FF;
+  --sky:#00BFFF;--sky-dark:#0095CC;--sky-soft:#E0F5FF;--sky-focus:#F0FAFF;
   --amber:#f59e0b;--amber-soft:#fef3c7;--amber-text:#92400e;
   --coral:#ef4444;--coral-soft:#fee2e2;--coral-text:#991b1b;
   --green:#10b981;--green-soft:#d1fae5;--green-text:#065f46;
-  --purple:#8b5cf6;--purple-soft:#ede9fe;--purple-text:#5b21b6;
   --nav:#0a1628;--nav-2:#0f1f36;
   --radius:12px;--radius-lg:14px;--radius-sm:10px;
   --shadow-sm:2px 2px 0 var(--line);
@@ -28,13 +27,11 @@
   --shadow-lg:5px 5px 0 var(--line);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
 button,input,textarea,select{font-family:inherit;font-size:inherit}
 .hidden{display:none!important}
 a{color:inherit;text-decoration:none}
 
-/* ─── LOGIN ───────────────────────────── */
 .login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
 .login-card{width:100%;max-width:440px;background:var(--surface);border:2px solid var(--line);border-radius:var(--radius-lg);padding:36px 32px 32px;box-shadow:var(--shadow-lg);animation:fadeUp .4s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
@@ -48,7 +45,7 @@ a{color:inherit;text-decoration:none}
 .input-wrap{position:relative}
 .input-wrap>i.icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--sky);font-size:14px;pointer-events:none;z-index:2}
 .field input{width:100%;padding:13px 16px 13px 44px;background:var(--surface);border:2px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-weight:500;box-shadow:var(--shadow-sm);transition:transform .1s,box-shadow .1s}
-.field input:focus{outline:none;border-color:var(--sky);background:var(--sky-soft);transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.field input:focus{outline:none;border-color:var(--sky);background:var(--sky-focus);transform:translate(-2px,-2px);box-shadow:var(--shadow)}
 .field input::placeholder{color:var(--muted)}
 .captcha-wrap{display:flex;justify-content:center;margin:18px 0;min-height:78px}
 .login-btn{width:100%;padding:15px;border:2px solid var(--line);border-radius:var(--radius-sm);background:var(--sky);color:#fff;font-size:14px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:transform .1s,box-shadow .1s,background .15s;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;gap:10px}
@@ -58,7 +55,6 @@ a{color:inherit;text-decoration:none}
 .login-msg{text-align:center;min-height:20px;margin-top:14px;font-size:12px;color:var(--coral);font-weight:700}
 .login-footer{margin-top:24px;padding:12px 16px;background:var(--sky-soft);border:2px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);text-align:center;font-size:12px;font-weight:700;color:var(--text)}
 
-/* ─── APP ─────────────────────────────── */
 .app{display:none}
 .app.on{display:block}
 
@@ -125,7 +121,7 @@ a{color:inherit;text-decoration:none}
 .search-wrap{position:relative;max-width:360px;width:100%}
 .search-wrap i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--sky);font-size:13px;pointer-events:none;z-index:2}
 .search-wrap input{width:100%;padding:11px 14px 11px 40px;border:2px solid var(--line);border-radius:11px;background:var(--surface);font-size:13px;font-weight:500;color:var(--text);box-shadow:var(--shadow-sm);transition:transform .1s,box-shadow .1s}
-.search-wrap input:focus{outline:none;border-color:var(--sky);background:var(--sky-soft);transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.search-wrap input:focus{outline:none;border-color:var(--sky);background:var(--sky-focus);transform:translate(-2px,-2px);box-shadow:var(--shadow)}
 
 .user-list{display:flex;flex-direction:column;gap:10px}
 .user-card{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:16px;align-items:center;padding:14px 18px;border:2px solid var(--line);border-radius:var(--radius);background:var(--surface);cursor:pointer;transition:transform .15s,box-shadow .15s;overflow:hidden;box-shadow:var(--shadow-sm)}
@@ -194,8 +190,8 @@ mark{background:var(--sky);color:#fff;padding:0 3px;border-radius:3px;font-weigh
 .form-group.full{grid-column:1/-1}
 .form-group label{font-size:11px;font-weight:900;color:var(--text);display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.05em}
 .form-group label i{color:var(--amber)}
-.form-group input,.form-group textarea,.form-group select{width:100%;padding:12px 14px;background:var(--surface);border:2px solid var(--line);border-radius:11px;font-size:13px;font-weight:500;color:var(--text);box-shadow:var(--shadow-sm);transition:transform .1s,box-shadow .1s}
-.form-group input:focus,.form-group textarea:focus,.form-group select:focus{outline:none;border-color:var(--sky);background:var(--sky-soft);transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:12px 14px;background:var(--surface);border:2px solid var(--line);border-radius:11px;font-size:13px;font-weight:500;color:var(--text);box-shadow:var(--shadow-sm);transition:transform .1s,box-shadow .1s;outline:none}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--sky);background:var(--sky-focus);transform:translate(-2px,-2px);box-shadow:var(--shadow)}
 .form-group textarea{resize:vertical;min-height:100px;font-family:inherit}
 .form-hint{font-size:11px;color:var(--muted);font-weight:600}
 
@@ -208,10 +204,8 @@ mark{background:var(--sky);color:#fff;padding:0 3px;border-radius:3px;font-weigh
 .preview-until{background:var(--amber-soft);color:var(--amber-text);padding:10px 14px;border-radius:11px;font-size:11px;font-weight:800;border:2px solid var(--line)}
 
 .empty{padding:30px 15px;text-align:center;color:var(--muted);font-size:12px;font-weight:600}
-
 .spinner{width:36px;height:36px;border:3px solid var(--sky-soft);border-top-color:var(--sky);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
 @keyframes spin{to{transform:rotate(360deg)}}
-
 .session-bar{position:fixed;bottom:16px;right:16px;background:var(--nav);color:#fff;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;box-shadow:var(--shadow);z-index:100;display:flex;align-items:center;gap:8px;border:2px solid var(--sky)}
 .session-bar b{color:var(--sky);font-family:'SF Mono',monospace}
 
@@ -223,8 +217,9 @@ mark{background:var(--sky);color:#fff;padding:0 3px;border-radius:3px;font-weigh
 <div id="loginWrapper" class="login-shell">
   <div class="login-card">
     <div class="login-header">
-      <h1>Login</h1>
-      <p>Masuk untuk melanjutkan</p>
+      <div class="login-brand">RevanStore</div>
+      <h1>Panel Admin</h1>
+      <p>Masuk untuk mengelola RevanStore</p>
     </div>
     <div class="field">
       <label><i class="fas fa-user"></i> EMAIL / USERNAME</label>
@@ -241,6 +236,7 @@ mark{background:var(--sky);color:#fff;padding:0 3px;border-radius:3px;font-weigh
     <div class="captcha-wrap"><div class="g-recaptcha" data-sitekey="6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT"></div></div>
     <button id="btnLogin" class="login-btn" onclick="loginAdmin()"><i class="fas fa-sign-in-alt"></i> Masuk ke Panel</button>
     <div id="loginMsg" class="login-msg"></div>
+    <div class="login-footer"><i class="fas fa-info-circle"></i> Sesi admin aktif 3 hari</div>
   </div>
 </div>
 
@@ -309,7 +305,21 @@ mark{background:var(--sky);color:#fff;padding:0 3px;border-radius:3px;font-weigh
             <div class="form-group"><label><i class="fa-solid fa-lock"></i> Password</label><input id="newPassword" type="password" placeholder="minimal 6 karakter"></div>
             <div class="form-group"><label><i class="fa-solid fa-envelope"></i> Email</label><input id="newEmail" type="email" placeholder="user@email.com"></div>
             <div class="form-group"><label><i class="fa-solid fa-phone"></i> Nomor HP</label><input id="newPhone" placeholder="08xxxxxxxxxx"></div>
-            <div class="form-group"><label><i class="fa-solid fa-calendar-days"></i> Masa Aktif</label><select id="newExpiryDuration"><option value="1mgg">1 Minggu</option><option value="2mgg">2 Minggu</option><option value="3mgg">3 Minggu</option><option value="1bln" selected>1 Bulan</option><option value="2bln">2 Bulan</option><option value="1thn">1 Tahun</option><option value="permanen">Permanen</option></select><span class="form-hint" id="expiryPreview"></span></div>
+            <div class="form-group">
+              <label><i class="fa-solid fa-calendar-days"></i> Masa Aktif</label>
+              <select id="newExpiryDuration">
+                <option value="1j">1 Jam</option>
+                <option value="2j">2 Jam</option>
+                <option value="3h">3 Hari</option>
+                <option value="1mgg">1 Minggu</option>
+                <option value="2mgg">2 Minggu</option>
+                <option value="1bln" selected>1 Bulan</option>
+                <option value="2bln">2 Bulan</option>
+                <option value="1thn">1 Tahun</option>
+                <option value="permanen">Permanen</option>
+              </select>
+              <span class="form-hint" id="expiryPreview"></span>
+            </div>
             <div class="form-group"><label><i class="fa-solid fa-user-tag"></i> Role</label><select id="newRole"><option value="User">User</option><option value="Admin">Admin</option></select></div>
           </div>
           <div class="page-actions" style="margin-top:22px"><button class="btn primary" onclick="submitAddUser()"><i class="fa-solid fa-plus"></i> Tambah User</button><button class="btn light" onclick="resetAddUserForm()"><i class="fa-solid fa-rotate-left"></i> Reset</button></div>
@@ -349,7 +359,22 @@ mark{background:var(--sky);color:#fff;padding:0 3px;border-radius:3px;font-weigh
             <div>
               <div class="form-group"><label><i class="fa-solid fa-heading"></i> Judul Halaman</label><input id="maintTitle" placeholder="SEDANG PERBAIKAN SISTEM"></div>
               <div class="form-group" style="margin-top:14px"><label><i class="fa-solid fa-message"></i> Pesan Halaman</label><textarea id="maintMessage" rows="4" placeholder="Website sedang dalam perbaikan oleh admin..."></textarea></div>
-              <div class="form-group" style="margin-top:14px"><label><i class="fa-solid fa-clock"></i> Estimasi Selesai (opsional)</label><input id="maintUntil" type="datetime-local"></div>
+              <div class="form-group" style="margin-top:14px">
+                <label><i class="fa-solid fa-clock"></i> Estimasi Selesai</label>
+                <select id="maintDuration">
+                  <option value="0">Tidak ditentukan</option>
+                  <option value="1j">1 Jam</option>
+                  <option value="2j">2 Jam</option>
+                  <option value="3h">3 Hari</option>
+                  <option value="1mgg">1 Minggu</option>
+                  <option value="2mgg">2 Minggu</option>
+                  <option value="1bln" selected>1 Bulan</option>
+                  <option value="2bln">2 Bulan</option>
+                  <option value="1thn">1 Tahun</option>
+                  <option value="permanen">Permanen</option>
+                </select>
+                <span class="form-hint" id="maintPreview"></span>
+              </div>
               <div class="page-actions" style="margin-top:20px"><button class="btn warning" onclick="enableMaintenance()"><i class="fa-solid fa-power-off"></i> Aktifkan</button><button class="btn danger" onclick="disableMaintenance()"><i class="fa-solid fa-circle-stop"></i> Nonaktifkan</button></div>
             </div>
             <div>
