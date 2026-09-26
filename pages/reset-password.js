@@ -42,9 +42,7 @@ async function getFingerprint() {
     fp += navigator.hardwareConcurrency || '';
     fp += navigator.deviceMemory || '';
     fp += navigator.platform || '';
-    var data = new TextEncoder().encode(fp);
-    var digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    return CryptoJS.MD5(fp).toString();
 }
 
 function sanitize(str) {
