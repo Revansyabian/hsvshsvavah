@@ -8,78 +8,81 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>Daftar - Top Up</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <meta name="theme-color" content="#0ea5e9">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#00BFFF">
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .register-container { width: 100%; max-width: 460px; }
-        .register-card { background: #fff; border-radius: 24px; padding: 40px 35px 30px; box-shadow: 0 25px 60px rgba(0,0,0,0.08); animation: fadeIn 0.4s ease; margin: auto; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .register-header { text-align: center; margin-bottom: 28px; }
-        .register-logo { width: 90px; height: 90px; border-radius: 20px; margin: 0 auto 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f0f9ff; border: 2px solid #e0f2fe; }
-        .register-logo img { width: 100%; height: 100%; object-fit: cover; }
-        .register-logo .logo-placeholder { font-size: 40px; color: #0ea5e9; }
-        .register-header h1 { color: #0c4a6e; font-size: 24px; font-weight: 700; }
-        .register-header p { color: #64748b; font-size: 14px; margin-top: 6px; }
-        .register-footer { margin-top: 20px; text-align: center; color: #94a3b8; font-size: 13px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
-        .register-footer a { color: #0ea5e9; text-decoration: none; font-weight: 600; }
-        .register-footer a:hover { text-decoration: underline; }
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: #475569; font-size: 13px; font-weight: 600; }
-        .form-group label i { color: #0ea5e9; }
-        .form-input { width: 100%; padding: 12px 16px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; color: #1e293b; font-size: 14px; transition: all 0.2s ease; }
-        .form-input:focus { outline: none; border-color: #0ea5e9; background: #fff; box-shadow: 0 0 0 4px rgba(14,165,233,0.1); }
-        .form-input::placeholder { color: #94a3b8; }
-        .btn { padding: 13px 24px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; width: 100%; }
-        .btn:hover { transform: translateY(-1px); }
-        .btn:active { transform: scale(0.97); }
-        .btn-primary { background: #0ea5e9; }
-        .btn-primary:hover { background: #0284c7; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .recaptcha-wrapper { margin-bottom: 16px; display: flex; justify-content: center; }
-        .verification-box { display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #E6F9FF; border-radius: 10px; margin-bottom: 16px; border: 1px solid #bae6fd; }
-        .verification-box input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; accent-color: #0ea5e9; cursor: pointer; flex-shrink: 0; }
-        .verification-box label { font-size: 12px; color: #475569; cursor: pointer; line-height: 1.5; }
-        .error-message { background: #fef2f2; color: #ef4444; padding: 10px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 16px; display: none; }
-        .error-message.show { display: block; }
-        .spinner { width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #0ea5e9; border-radius: 50%; animation: spin 0.6s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .password-strength { height: 4px; border-radius: 2px; margin-top: 4px; background: #e2e8f0; overflow: hidden; }
-        .password-strength-bar { height: 100%; width: 0%; transition: all 0.3s ease; border-radius: 2px; }
-        .strength-weak { background: #ef4444; width: 33%; }
-        .strength-medium { background: #f59e0b; width: 66%; }
-        .strength-strong { background: #10b981; width: 100%; }
-        .paket-dropdown { position: relative; }
-        .paket-select { width: 100%; padding: 12px 16px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; color: #1e293b; font-size: 14px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between; }
-        .paket-select:hover { border-color: #0ea5e9; }
-        .paket-select.active { border-color: #0ea5e9; box-shadow: 0 0 0 4px rgba(14,165,233,0.1); }
-        .paket-select .placeholder { color: #94a3b8; }
-        .paket-select .selected-text { color: #1e293b; font-weight: 600; }
-        .paket-select i { color: #0ea5e9; transition: transform 0.2s ease; }
-        .paket-select.active i { transform: rotate(180deg); }
-        .paket-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 2px solid #e2e8f0; border-radius: 10px; max-height: 250px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
-        .paket-list.show { display: block; }
-        .paket-option { padding: 12px 16px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
-        .paket-option:last-child { border-bottom: none; }
-        .paket-option:hover { background: #f0f9ff; }
-        .paket-option.selected { background: #E6F9FF; }
-        .paket-option .paket-name { font-size: 13px; font-weight: 600; color: #1e293b; }
-        .paket-option .paket-price { font-size: 14px; font-weight: 700; color: #0ea5e9; }
-        .honeypot-field { position: absolute; left: -9999px; opacity: 0; height: 0; width: 0; overflow: hidden; }
-        @media(max-width:480px) { .register-card { padding: 28px 20px; } .register-header h1 { font-size: 20px; } }
+        :root {
+            --bg:#f4f7fb;--surface:#FFFFFF;--ink:#0F172A;--ink-2:#1E293B;
+            --muted:#64748b;--muted-2:#94a3b8;--border:#0F172A;
+            --sky:#00BFFF;--sky-dark:#0095CC;--sky-soft:#E0F5FF;--sky-focus:#F0FAFF;
+            --amber:#f59e0b;--coral:#ef4444;--green:#10b981;
+            --radius:12px;--radius-sm:10px;
+            --shadow:5px 5px 0 var(--border);--shadow-sm:3px 3px 0 var(--border);--shadow-xs:2px 2px 0 var(--border);
+        }
+        * { margin:0;padding:0;box-sizing:border-box;font-family:'Inter','Segoe UI',Tahoma,sans-serif; }
+        body { background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;-webkit-font-smoothing:antialiased; }
+        .register-container { width:100%;max-width:480px; }
+        .register-card { background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:36px 32px 32px;box-shadow:var(--shadow);animation:fadeIn 0.4s ease; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);} }
+        .register-header { margin-bottom:24px; }
+        .register-header h1 { color:var(--ink);font-size:26px;font-weight:900;letter-spacing:-0.03em;line-height:1.15; }
+        .register-header p { color:var(--muted);font-size:14px;font-weight:500;margin-top:6px; }
+        .form-group { margin-bottom:16px; }
+        .form-group label { display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--ink);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em; }
+        .form-group label i { color:var(--amber);font-size:13px; }
+        .form-input { width:100%;padding:13px 16px;background:var(--surface);border:2px solid var(--border);border-radius:var(--radius-sm);color:var(--ink-2);font-size:15px;font-weight:500;transition:transform 100ms,box-shadow 100ms,border-color 150ms,background-color 150ms;outline:none;box-shadow:var(--shadow-xs); }
+        .form-input::placeholder { color:var(--muted-2);font-weight:500; }
+        .form-input:hover { transform:translate(-1px,-1px);box-shadow:var(--shadow-sm); }
+        .form-input:focus { transform:translate(-2px,-2px);box-shadow:var(--shadow-sm);border-color:var(--sky);background:var(--sky-focus); }
+        .btn { padding:14px 24px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-weight:800;cursor:pointer;transition:transform 100ms,box-shadow 100ms,background-color 150ms;display:flex;align-items:center;justify-content:center;gap:10px;color:#fff;letter-spacing:0.06em;text-transform:uppercase;width:100%; }
+        .btn-primary { background:var(--sky);box-shadow:var(--shadow-sm); }
+        .btn-primary:hover:not(:disabled) { background:var(--sky-dark);transform:translate(-2px,-2px);box-shadow:var(--shadow); }
+        .btn-primary:active:not(:disabled) { transform:translate(2px,2px);box-shadow:1px 1px 0 var(--border); }
+        .btn:disabled { opacity:0.6;cursor:not-allowed; }
+        .recaptcha-wrapper { margin-bottom:16px;display:flex;justify-content:center; }
+        .verification-box { display:flex;align-items:flex-start;gap:10px;padding:14px;background:var(--sky-soft);border:2px solid var(--border);border-radius:var(--radius-sm);margin-bottom:16px;box-shadow:var(--shadow-xs); }
+        .verification-box input[type="checkbox"] { width:18px;height:18px;margin-top:2px;accent-color:var(--sky);cursor:pointer;flex-shrink:0; }
+        .verification-box label { font-size:12px;color:var(--ink);cursor:pointer;line-height:1.5;font-weight:600; }
+        .error-message { background:#fee2e2;color:#991b1b;border:2px solid var(--border);padding:10px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:700;margin-bottom:16px;display:none;box-shadow:var(--shadow-xs); }
+        .error-message.show { display:block; }
+        .password-strength { height:6px;border-radius:3px;margin-top:6px;background:var(--sky-soft);overflow:hidden;border:2px solid var(--border); }
+        .password-strength-bar { height:100%;width:0%;transition:all 0.3s ease;border-radius:2px; }
+        .strength-weak { background:var(--coral);width:33%; }
+        .strength-medium { background:var(--amber);width:66%; }
+        .strength-strong { background:var(--green);width:100%; }
+        .paket-dropdown { position:relative; }
+        .paket-select { width:100%;padding:13px 16px;background:var(--surface);border:2px solid var(--border);border-radius:var(--radius-sm);color:var(--ink-2);font-size:15px;font-weight:500;cursor:pointer;transition:transform 100ms,box-shadow 100ms;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-xs); }
+        .paket-select:hover { transform:translate(-1px,-1px);box-shadow:var(--shadow-sm); }
+        .paket-select.active { transform:translate(-2px,-2px);box-shadow:var(--shadow-sm);border-color:var(--sky);background:var(--sky-focus); }
+        .paket-select .placeholder { color:var(--muted-2); }
+        .paket-select .selected-text { color:var(--ink);font-weight:700; }
+        .paket-select i { color:var(--sky);transition:transform 0.2s ease; }
+        .paket-select.active i { transform:rotate(180deg); }
+        .paket-list { position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border:2px solid var(--border);border-radius:var(--radius-sm);max-height:280px;overflow-y:auto;z-index:10;display:none;box-shadow:var(--shadow); }
+        .paket-list.show { display:block; }
+        .paket-option { padding:12px 16px;cursor:pointer;transition:background 0.15s;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--sky-soft); }
+        .paket-option:last-child { border-bottom:none; }
+        .paket-option:hover { background:var(--sky-focus); }
+        .paket-option.selected { background:var(--sky-soft); }
+        .paket-option .paket-name { font-size:13px;font-weight:800;color:var(--ink); }
+        .paket-option .paket-price { font-size:14px;font-weight:900;color:var(--sky-dark); }
+        .honeypot-field { position:absolute;left:-9999px;opacity:0;height:0;width:0;overflow:hidden; }
+        .register-footer { margin-top:20px;text-align:center;color:var(--muted);font-size:13px;font-weight:500;padding-top:16px;border-top:2px dashed var(--border); }
+        .register-footer a { color:var(--sky-dark);text-decoration:none;font-weight:700; }
+        .register-footer a:hover { text-decoration:underline;text-underline-offset:3px; }
+        @media(max-width:480px) { .register-card{padding:28px 22px;} .register-header h1{font-size:22px;} }
     </style>
+    <script src="/pages/secure-api.js"></script>
 </head>
 <body>
 
     <div class="register-container">
         <div class="register-card">
-            
             <div class="register-header">
-                <div class="register-logo">
-                    <img src="/img.png" alt="Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                    <div class="logo-placeholder" style="display:none;"><i class="fas fa-cube"></i></div>
-                </div>
                 <h1>Daftar Akun</h1>
                 <p>Pilih paket dan buat akun baru</p>
             </div>
@@ -94,7 +97,7 @@
 
             <div class="form-group">
                 <label for="username"><i class="fas fa-user"></i> Username</label>
-                <input type="text" id="username" placeholder="Huruf dan angka saja (3-20)" class="form-input" maxlength="20" oninput="validateUsernameInput()">
+                <input type="text" id="username" placeholder="Huruf dan angka (3-20)" class="form-input" maxlength="20" oninput="validateUsernameInput()">
             </div>
 
             <div class="form-group">
@@ -128,28 +131,22 @@
                     </div>
                     <div class="paket-list" id="paketList">
                         <div class="paket-option" data-paket="1 Minggu" data-harga="15000" onclick="selectPaketOption(this)">
-                            <span class="paket-name">1 Minggu</span>
-                            <span class="paket-price">Rp 15.000</span>
+                            <span class="paket-name">1 Minggu</span><span class="paket-price">Rp 15.000</span>
                         </div>
                         <div class="paket-option" data-paket="2 Minggu" data-harga="25000" onclick="selectPaketOption(this)">
-                            <span class="paket-name">2 Minggu</span>
-                            <span class="paket-price">Rp 25.000</span>
+                            <span class="paket-name">2 Minggu</span><span class="paket-price">Rp 25.000</span>
                         </div>
                         <div class="paket-option" data-paket="1 Bulan" data-harga="40000" onclick="selectPaketOption(this)">
-                            <span class="paket-name">1 Bulan</span>
-                            <span class="paket-price">Rp 40.000</span>
+                            <span class="paket-name">1 Bulan</span><span class="paket-price">Rp 40.000</span>
                         </div>
                         <div class="paket-option" data-paket="2 Bulan" data-harga="50000" onclick="selectPaketOption(this)">
-                            <span class="paket-name">2 Bulan</span>
-                            <span class="paket-price">Rp 50.000</span>
+                            <span class="paket-name">2 Bulan</span><span class="paket-price">Rp 50.000</span>
                         </div>
                         <div class="paket-option" data-paket="3 Bulan" data-harga="55000" onclick="selectPaketOption(this)">
-                            <span class="paket-name">3 Bulan</span>
-                            <span class="paket-price">Rp 55.000</span>
+                            <span class="paket-name">3 Bulan</span><span class="paket-price">Rp 55.000</span>
                         </div>
                         <div class="paket-option" data-paket="Permanen" data-harga="100000" onclick="selectPaketOption(this)">
-                            <span class="paket-name">Permanen</span>
-                            <span class="paket-price">Rp 100.000</span>
+                            <span class="paket-name">Permanen</span><span class="paket-price">Rp 100.000</span>
                         </div>
                     </div>
                 </div>
@@ -165,17 +162,16 @@
             </div>
 
             <button class="btn btn-primary" id="btnRegister" onclick="register()" disabled>
-                <i class="fas fa-user-plus"></i> DAFTAR
+                <i class="fas fa-user-plus"></i> Daftar
             </button>
 
             <div class="register-footer">
                 <p>Sudah punya akun? <a href="/">Login di sini</a></p>
             </div>
-
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-        <script src="/pages/register.js"></script>
+    <script src="/pages/register.js"></script>
 </body>
 </html>
