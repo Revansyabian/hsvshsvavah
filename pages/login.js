@@ -157,15 +157,19 @@ function tampilkanHalamanMaintenance(dataMaintenance) {
     var sampai = (dataMaintenance && (dataMaintenance.until || dataMaintenance.sampai)) ? (dataMaintenance.until || dataMaintenance.sampai) : null;
     var teksEstimasi = sanitize(sampai ? 'Estimasi selesai: ' + new Date(sampai).toLocaleString('id-ID') : 'Mohon maaf atas ketidaknyamanan ini.');
 
-    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
-        '<div style="background:#ffffff;border-radius:24px;padding:48px 36px;width:100%;max-width:440px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,0.08);border:1px solid #e2e8f0;">' +
-        '<div style="width:90px;height:90px;background:#fef3c7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">' +
-        '<i class="fas fa-tools" style="font-size:40px;color:#f59e0b;"></i>' +
-        '</div>' +
-        '<h1 style="color:#0c4a6e;font-size:24px;font-weight:700;margin-bottom:8px;">' + judul + '</h1>' +
-        '<p style="color:#64748b;font-size:14px;margin-bottom:6px;line-height:1.6;">' + pesan + '</p>' +
-        '<div style="background:#fef3c7;color:#92400e;padding:12px 16px;border-radius:12px;font-weight:600;font-size:13px;margin:16px 0 24px;">' + teksEstimasi + '</div>' +
-        '</div></div>';
+    document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f7fb;font-family:'Inter','Segoe UI',Tahoma,sans-serif;-webkit-font-smoothing:antialiased;">
+            <div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;width:100%;max-width:440px;text-align:center;">
+                <div style="width:88px;height:88px;background:#fef3c7;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">
+                    <i class="fas fa-tools" style="font-size:36px;color:#f59e0b;"></i>
+                </div>
+                <div style="display:inline-block;background:#fef3c7;color:#92400e;border:2px solid #0F172A;border-radius:999px;padding:5px 14px;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;box-shadow:2px 2px 0 #0F172A;margin-bottom:18px;">Maintenance</div>
+                <h1 style="color:#0F172A;font-size:24px;font-weight:900;letter-spacing:-0.03em;line-height:1.2;margin:0 0 10px;">${judul}</h1>
+                <p style="color:#64748b;font-size:14px;font-weight:500;line-height:1.6;margin:0 0 22px;">${pesan}</p>
+                <div style="background:#E0F5FF;color:#0F172A;border:2px solid #0F172A;border-radius:10px;padding:12px 16px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 #0F172A;">${teksEstimasi}</div>
+            </div>
+        </div>
+    `;
 }
 
 /* ==================== BLOCKED ==================== */
@@ -197,43 +201,44 @@ async function checkIfBlocked() {
     return isBlocked;
 }
 
-function tampilkanHalamanBlokir() {
-    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
-        '<div style="background:#ffffff;border-radius:24px;padding:48px 36px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.08);border:1px solid #e2e8f0;">' +
-        '<i class="fas fa-lock" style="font-size:64px;color:#ef4444;margin-bottom:16px;display:block;"></i>' +
-        '<span style="display:inline-block;background:#fef2f2;color:#dc2626;padding:4px 16px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border:1px solid #fecaca;margin-bottom:12px;"><i class="fas fa-exclamation-circle"></i> DIBLOKIR</span>' +
-        '<h1 style="font-size:24px;font-weight:700;color:#1e293b;margin-bottom:8px;">AKSES DITOLAK</h1>' +
-        '<p style="font-size:14px;color:#64748b;line-height:1.6;">Akses ditolak, jika ingin dibuka silakan hubungi admin.</p>' +
-        '</div></div>';
-}
-
-function tampilkanPopupBanned(until) {
+function tampilkanHalamanBanAkses(until, alasan) {
     var untilText = sanitize((until || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(until).toLocaleString('id-ID')));
-    Swal.fire({
-        icon: 'error',
-        title: 'AKUN DIBANNED',
-        html: '<p>Maaf, akun Anda telah dibanned oleh admin.</p><p style="color:#dc2626;background:#fee2e2;padding:8px;border-radius:8px;"><b>Durasi: ' + untilText + '</b></p>',
-        confirmButtonText: '<i class="fab fa-whatsapp"></i> Hubungi Admin',
-        confirmButtonColor: '#25D366',
-        showCancelButton: true,
-        cancelButtonText: 'Tutup',
-        cancelButtonColor: '#64748b',
-        allowOutsideClick: false
-    }).then(function (r) {
-        if (r.isConfirmed) window.open('https://wa.me/' + WHATSAPP_NUMBER + '?text=Assalamualaikum%20admin%2C%20akun%20saya%20dibanned', '_blank');
-    });
-}
+    var alasanText = sanitize(alasan || 'Akses Anda diblokir oleh admin karena terdeteksi pelanggaran aturan.');
 
-function tampilkanHalamanBanAkses(until) {
-    var untilText = sanitize((until || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(until).toLocaleString('id-ID')));
-    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f9ff 0%,#bae6fd 50%,#7dd3fc 100%);padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
-        '<div style="background:#ffffff;border-radius:24px;padding:48px 36px;width:100%;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,191,255,0.15);border:1px solid rgba(0,191,255,0.1);">' +
-        '<div style="font-size:72px;color:#f59e0b;margin-bottom:12px;">🚫</div>' +
-        '<h2 style="font-size:24px;font-weight:700;color:#0c4a6e;margin-bottom:8px;">AKSES DIBLOKIR</h2>' +
-        '<p style="font-size:14px;color:#64748b;margin-bottom:6px;">Maaf, akses Anda diblokir oleh admin.</p>' +
-        '<div style="background:#fef3c7;color:#92400e;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px;margin:16px 0 24px;">Durasi: ' + untilText + '</div>' +
-        '<button onclick="window.open(\'https://wa.me/' + WHATSAPP_NUMBER + '?text=Assalamualaikum%20admin%2C%20akses%20saya%20diblokir\',\'_blank\')" style="display:inline-flex;align-items:center;gap:10px;padding:12px 32px;background:#25D366;color:#fff;border:none;border-radius:30px;font-weight:600;font-size:15px;cursor:pointer;transition:0.2s;font-family:\'Segoe UI\',sans-serif;">' +
-        '<i class="fab fa-whatsapp"></i> Hubungi Admin</button></div></div>';
+    document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f7fb;font-family:'Inter','Segoe UI',Tahoma,sans-serif;-webkit-font-smoothing:antialiased;">
+            <div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;width:100%;max-width:440px;text-align:center;">
+
+                <div style="width:88px;height:88px;background:#fee2e2;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">
+                    <i class="fas fa-ban" style="font-size:36px;color:#ef4444;"></i>
+                </div>
+
+                <div style="display:inline-block;background:#fee2e2;color:#991b1b;border:2px solid #0F172A;border-radius:999px;padding:5px 14px;font-size:11px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;box-shadow:2px 2px 0 #0F172A;margin-bottom:18px;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i> Akses Diblokir
+                </div>
+
+                <h1 style="color:#0F172A;font-size:24px;font-weight:900;letter-spacing:-0.03em;line-height:1.2;margin:0 0 12px;">
+                    AKSES DIBLOKIR
+                </h1>
+
+                <p style="color:#64748b;font-size:14px;font-weight:500;line-height:1.6;margin:0 0 20px;">
+                    Maaf, akses Anda diblokir oleh admin.
+                </p>
+
+                <div style="background:#fef3c7;color:#92400e;border:2px solid #0F172A;border-radius:10px;padding:14px 16px;font-weight:700;font-size:13px;line-height:1.5;box-shadow:2px 2px 0 #0F172A;margin-bottom:14px;text-align:left;">
+                    <div style="font-size:10px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#0F172A;margin-bottom:6px;">
+                        <i class="fas fa-circle-info" style="margin-right:4px;"></i> Alasan
+                    </div>
+                    ${alasanText}
+                </div>
+
+                <div style="background:#fee2e2;color:#991b1b;border:2px solid #0F172A;border-radius:10px;padding:12px 16px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 #0F172A;">
+                    <i class="fas fa-clock" style="margin-right:6px;"></i> Durasi: ${untilText}
+                </div>
+
+            </div>
+        </div>
+    `;
 }
 
 function tampilkanPopupDitangguhkan() {
