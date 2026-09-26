@@ -5,9 +5,6 @@ let shareCheckInterval = null;
 let sessionTimerInterval = null;
 let sessionExpiresAt = 0;
 
-/* ============================================================
-   ENCRYPTED STORAGE — AES-256-GCM
-   ============================================================ */
 const StorageVault = (function () {
   'use strict';
   const PREFIX = '__sv_';
@@ -25,7 +22,7 @@ const StorageVault = (function () {
     fp += navigator.hardwareConcurrency || '';
     fp += navigator.deviceMemory || '';
     fp += navigator.platform || '';
-    return CryptoJS.SHA256(fp).toString();
+    return CryptoJS.MD5(fp).toString();
   }
 
   function _getCSRF() {
@@ -119,15 +116,51 @@ const $ = id => document.getElementById(id);
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
+
+/* ─── Toast & Confirm — versi lebih keren ─── */
+const SwalTheme = {
+  confirmButtonColor: '#00BFFF',
+  cancelButtonColor: '#64748b',
+  buttonsStyling: true,
+  customClass: {
+    popup: 'neo-swal-popup',
+    title: 'neo-swal-title',
+    htmlContainer: 'neo-swal-html',
+    confirmButton: 'neo-swal-btn',
+    cancelButton: 'neo-swal-btn-cancel',
+    input: 'neo-swal-input'
+  }
+};
+
 function toast(title, text = '', icon = 'success') {
-  return window.Swal ? Swal.fire({ icon, title, text, confirmButtonColor: '#00BFFF' }) : alert(title);
+  if (!window.Swal) return alert(title);
+  return Swal.fire({
+    ...SwalTheme,
+    icon,
+    title,
+    text,
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 2600,
+    timerProgressBar: true,
+    didOpen: (t) => {
+      t.addEventListener('mouseenter', Swal.stopTimer);
+      t.addEventListener('mouseleave', Swal.resumeTimer);
+    }
+  });
 }
+
 async function confirmBox(text) {
   if (window.Swal) {
     const r = await Swal.fire({
-      icon: 'warning', title: 'Konfirmasi', text,
-      showCancelButton: true, confirmButtonText: 'Ya', cancelButtonText: 'Batal',
-      confirmButtonColor: '#00BFFF', cancelButtonColor: '#64748b'
+      ...SwalTheme,
+      icon: 'warning',
+      title: 'Konfirmasi',
+      text,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Lanjutkan',
+      cancelButtonText: 'Batal'
     });
     return r.isConfirmed;
   }
@@ -146,7 +179,7 @@ async function getFingerprint() {
   fp += navigator.hardwareConcurrency || '';
   fp += navigator.deviceMemory || '';
   fp += navigator.platform || '';
-  _fpCache = CryptoJS.SHA256(fp).toString();
+  _fpCache = CryptoJS.MD5(fp).toString();
   return _fpCache;
 }
 
@@ -191,11 +224,11 @@ async function request(action, payload = {}) {
     if (res.status === 401 && action !== 'login') {
       showLogin();
       Swal.fire({
+        ...SwalTheme,
         icon: 'warning',
         title: 'Sesi Berakhir',
-        text: 'Sesi admin lo udah habis. Silakan login lagi.',
-        confirmButtonText: 'OK',
-        confirmButtonColor: '#00BFFF'
+        text: 'Sesi admin kamu sudah habis. Silakan login lagi.',
+        confirmButtonText: 'OK'
       });
     }
     throw new Error(data.message || data.error || 'Request gagal');
@@ -249,8 +282,9 @@ async function loginAdmin() {
   setMsg('loginMsg', '');
 
   Swal.fire({
+    ...SwalTheme,
     title: 'Memverifikasi...',
-    html: 'Mohon tunggu sebentar',
+    html: '<span style="font-size:13px;color:#64748b">Mohon tunggu sebentar</span>',
     allowOutsideClick: false,
     allowEscapeKey: false,
     showConfirmButton: false,
@@ -270,11 +304,13 @@ async function loginAdmin() {
     setMsg('loginMsg', '');
 
     await Swal.fire({
+      ...SwalTheme,
       icon: 'success',
       title: 'Login Berhasil',
-      text: 'Selamat datang, ' + r.username + '. Sesi aktif 3 hari.',
-      timer: 1500,
-      showConfirmButton: false
+      text: 'Selamat datang, ' + r.username,
+      timer: 1400,
+      showConfirmButton: false,
+      timerProgressBar: true
     });
 
     showApp();
@@ -322,11 +358,11 @@ function startSessionTimer(seconds) {
       clearInterval(sessionTimerInterval);
       if (shareCheckInterval) clearInterval(shareCheckInterval);
       Swal.fire({
+        ...SwalTheme,
         icon: 'warning',
         title: 'Sesi Berakhir',
-        text: 'Waktu sesi lo udah habis. Silakan login lagi.',
+        text: 'Waktu sesi kamu sudah habis. Silakan login lagi.',
         confirmButtonText: 'Login Lagi',
-        confirmButtonColor: '#00BFFF',
         allowOutsideClick: false
       }).then(async () => {
         try { await request('logout'); } catch {}
@@ -349,6 +385,7 @@ function startShareCheck() {
         if (shareCheckInterval) clearInterval(shareCheckInterval);
         if (sessionTimerInterval) clearInterval(sessionTimerInterval);
         await Swal.fire({
+          ...SwalTheme,
           icon: 'error',
           title: 'Sesi Ditutup',
           text: r.message || 'Akun login di perangkat lain.',
@@ -373,11 +410,17 @@ function closeSidebar() {
   $('sidebar').classList.remove('open');
   $('mainContent').classList.remove('shifted');
 }
+
 function switchPage(page) {
   document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.sidebar-nav a[data-page]').forEach(x => x.classList.remove('active'));
   const target = $('page-' + page);
-  if (target) target.classList.add('active');
+  if (target) {
+    target.classList.add('active');
+    target.style.animation = 'none';
+    void target.offsetWidth;
+    target.style.animation = '';
+  }
   const link = document.querySelector(`[data-page="${page}"]`);
   if (link) link.classList.add('active');
   $('topTitle').textContent = link ? link.textContent.trim() : 'Dashboard';
@@ -387,9 +430,7 @@ function switchPage(page) {
     users: loadUsers,
     'add-user': () => { updateExpiryPreview(); },
     'user-activity': loadUserActivity,
-    'user-registrations': loadPendingUsers,
-    'approved-users': loadApprovedUsers,
-    'rejected-users': loadRejectedUsers,
+    'user-registrations': loadUserRegistrations,
     blocked: loadBlocked,
     logs: loadLogs,
     suspicious: loadSuspicious,
@@ -398,14 +439,38 @@ function switchPage(page) {
   if (f[page]) f[page]();
 }
 
+/* ─── Skeleton loader keren ─── */
+function skeletonRows(n = 4) {
+  let h = '';
+  for (let i = 0; i < n; i++) {
+    h += `<div style="display:flex;gap:14px;align-items:center;padding:14px;border:2px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:8px;opacity:.6">
+      <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(90deg,#e0f5ff,#b8e8ff,#e0f5ff);background-size:200% 100%;animation:neoShimmer 1.4s ease-in-out infinite"></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+        <div style="width:40%;height:12px;border-radius:4px;background:linear-gradient(90deg,#e0f5ff,#b8e8ff,#e0f5ff);background-size:200% 100%;animation:neoShimmer 1.4s ease-in-out infinite"></div>
+        <div style="width:65%;height:10px;border-radius:4px;background:linear-gradient(90deg,#e0f5ff,#b8e8ff,#e0f5ff);background-size:200% 100%;animation:neoShimmer 1.4s ease-in-out infinite"></div>
+      </div>
+    </div>`;
+  }
+  return h;
+}
+
+function ensureShimmerStyle() {
+  if (document.getElementById('neo-shimmer-style')) return;
+  const s = document.createElement('style');
+  s.id = 'neo-shimmer-style';
+  s.textContent = `@keyframes neoShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}`;
+  document.head.appendChild(s);
+}
+
 async function loadDashboard() {
+  ensureShimmerStyle();
   try {
     const r = await request('stats');
     if (r.stats) {
-      $('statTotal').textContent = r.stats.total || 0;
-      $('statActive').textContent = r.stats.active || 0;
-      $('statPending').textContent = r.stats.pending || 0;
-      $('statBanned').textContent = r.stats.banned || 0;
+      animateCount($('statTotal'), r.stats.total || 0);
+      animateCount($('statActive'), r.stats.active || 0);
+      animateCount($('statPending'), r.stats.pending || 0);
+      animateCount($('statBanned'), r.stats.banned || 0);
     }
     const logs = await request('logs', { limit: 8 });
     const list = logs.logs || [];
@@ -415,7 +480,24 @@ async function loadDashboard() {
   } catch (e) { await toast('Gagal memuat dashboard', e.message, 'error'); }
 }
 
+function animateCount(el, target) {
+  if (!el) return;
+  const start = parseInt(el.textContent) || 0;
+  if (start === target) { el.textContent = target; return; }
+  const duration = 500;
+  const t0 = performance.now();
+  const step = (t) => {
+    const p = Math.min(1, (t - t0) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(start + (target - start) * eased);
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 async function loadUsers() {
+  ensureShimmerStyle();
+  $('userList').innerHTML = skeletonRows(4);
   try {
     const r = await request('users');
     usersCache = r.users || [];
@@ -500,7 +582,7 @@ function renderUserList() {
 
 async function openProfileModal(id) {
   $('profileModal').classList.add('show');
-  $('profileBody').innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+  $('profileBody').innerHTML = `<div style="padding:20px">${skeletonRows(3)}</div>`;
   try {
     const r = await request('get-user-detail', { id });
     if (!r.success || !r.user) throw new Error(r.message || 'Gagal memuat');
@@ -558,16 +640,7 @@ function renderProfile(u) {
       <div class="info-row"><span class="info-key">No. HP</span><span class="info-val">${esc(u.phone || '-')}</span></div>
       <div class="info-row"><span class="info-key">Masa Aktif</span><span class="info-val">${esc(u.expiry_date || '-')} ${typeof u.daysLeft === 'number' && u.daysLeft >= 0 && u.daysLeft !== 999999 ? '· ' + u.daysLeft + ' hari' : ''}</span></div>
       <div class="info-row"><span class="info-key">Dibuat</span><span class="info-val">${u.createdAt ? new Date(u.createdAt).toLocaleString('id-ID') : '-'}</span></div>
-      <div class="info-row"><span class="info-key">Status Aktivasi</span><span class="info-val">${esc(u.activationStatus || '-')}</span></div>
-      <div class="info-row"><span class="info-key">IP Approval</span><span class="info-val">${esc(u.approvedIP || u.registeredIP || '-')}</span></div>
-      <div class="info-row"><span class="info-key">FP Approval</span><span class="info-val" style="font-family:monospace;font-size:11px">${esc(u.approvedFP || u.registeredFP || '-')}</span></div>
-      <div class="info-row"><span class="info-key">Reset Password</span><span class="info-val">${u.resetCount || 0}x · ${u.resetCount24h || 0}x/24j · sisa ${u.resetRemaining ?? 3}</span></div>
-      ${u.rejectionReason ? `<div class="info-row"><span class="info-key">Alasan Ditolak</span><span class="info-val">${esc(u.rejectionReason)}</span></div>` : ''}
-    </div>
-
-    <div class="section">
-      <div class="section-title"><i class="fa-solid fa-key"></i> Riwayat Reset Password</div>
-      ${(u.resetHistory || []).length ? u.resetHistory.map(x => `<div class="log-item"><div class="log-head">${new Date(Number(x.at || 0)).toLocaleString('id-ID')}</div><div class="log-meta">IP: ${esc(x.ip || '-')} · FP: ${esc(String(x.fp || '-').slice(0, 16))}</div></div>`).join('') : '<div class="empty">Belum ada reset password.</div>'}
+      <div class="info-row"><span class="info-key">Reset Password</span><span class="info-val">${u.resetCount || 0}x</span></div>
     </div>
 
     <div class="section">
@@ -590,7 +663,6 @@ function renderProfile(u) {
       ${logsHtml}
     </div>
 
-    ${u.activationStatus === 'pending' ? `<div class="section"><div class="section-title"><i class="fa-solid fa-user-check"></i> Aktivasi</div><div class="action-grid"><button class="btn success" onclick="approveUser('${esc(u.username)}')"><i class="fa-solid fa-check"></i> Setujui</button><button class="btn danger" onclick="rejectUser('${esc(u.username)}')"><i class="fa-solid fa-xmark"></i> Tidak Setujui</button></div></div>` : ''}
     <div class="section">
       <div class="section-title"><i class="fa-solid fa-bolt"></i> Aksi</div>
       <div class="action-grid">
@@ -623,16 +695,17 @@ async function askDuration(action, username) {
     'force-logout': 'Tangguhkan'
   };
   const r = await Swal.fire({
+    ...SwalTheme,
     title: titleMap[action] || 'Pilih Durasi',
     html: `
-      <p style="font-size:13px;color:#64748b;margin:0 0 14px">Pilih durasi untuk <b>${esc(username)}</b>:</p>
-      <select id="swalDuration" class="swal2-select" style="display:flex;width:100%;padding:10px;border-radius:10px;border:1px solid #e2e8f0">
+      <p style="font-size:13px;color:#64748b;margin:0 0 14px;font-weight:600">Pilih durasi untuk <b style="color:#0F172A">${esc(username)}</b>:</p>
+      <select id="swalDuration" style="display:flex;width:100%;padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A">
         <option value="1h">1 Jam</option>
         <option value="2h">2 Jam</option>
         <option value="3h">3 Jam</option>
         <option value="permanent" selected>Permanen</option>
       </select>
-      <input id="swalReason" class="swal2-input" placeholder="Alasan (opsional)" style="margin-top:12px">
+      <input id="swalReason" placeholder="Alasan (opsional)" style="margin-top:12px;width:100%;padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A">
     `,
     showCancelButton: true,
     confirmButtonText: 'Lanjutkan',
@@ -679,17 +752,19 @@ async function doUserAction(action, username) {
 async function editUserPrompt(username) {
   const u = usersCache.find(x => x.username === username);
   if (!u) return;
+  const inputStyle = 'width:100%;padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A;margin:6px 0';
   const r = await Swal.fire({
+    ...SwalTheme,
     title: 'Edit User',
     html: `
-      <input id="swalEmail" class="swal2-input" placeholder="Email" value="${esc(u.email || '')}">
-      <input id="swalPhone" class="swal2-input" placeholder="No HP" value="${esc(u.phone || '')}">
-      <input id="swalExpiry" class="swal2-input" type="date" value="${esc(u.expiry_date || '')}">
-      <select id="swalRole" class="swal2-select">
+      <input id="swalEmail" placeholder="Email" value="${esc(u.email || '')}" style="${inputStyle}">
+      <input id="swalPhone" placeholder="No HP" value="${esc(u.phone || '')}" style="${inputStyle}">
+      <input id="swalExpiry" type="date" value="${esc(u.expiry_date || '')}" style="${inputStyle}">
+      <select id="swalRole" style="${inputStyle}">
         <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
         <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
       </select>
-      <input id="swalPassword" class="swal2-input" type="password" placeholder="Password baru (opsional)">`,
+      <input id="swalPassword" type="password" placeholder="Password baru (opsional)" style="${inputStyle}">`,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: 'Simpan',
@@ -781,6 +856,7 @@ function resetAddUserForm() {
 }
 
 async function loadUserActivity() {
+  ensureShimmerStyle();
   try {
     const r = await request('user-activity', { limit: 200 });
     const list = r.logs || [];
@@ -790,61 +866,30 @@ async function loadUserActivity() {
   } catch (e) { await toast('Gagal memuat', e.message, 'error'); }
 }
 
-function renderActivationList(list, targetId, emptyText, mode) {
-  const target = $(targetId);
-  if (!target) return;
-  target.innerHTML = list.length
-    ? list.map(u => {
-        const initial = (u.username || '?')[0];
-        const color = u.initialColor || '#64748b';
-        const action = mode === 'pending'
-          ? `<div class="user-status"><button class="btn success sm" onclick="event.stopPropagation();approveUser('${esc(u.username)}')">Setujui</button><button class="btn danger sm" onclick="event.stopPropagation();rejectUser('${esc(u.username)}')">Tolak</button></div>`
-          : `<div class="user-status">${userStatusBadge(u)}</div>`;
-        return `<div class="user-card" onclick="openProfileModal('${esc(u.id)}')">
-          <div class="user-avatar" style="background:${esc(color)}">${esc(initial.toUpperCase())}</div>
-          <div class="user-main">
-            <b>${esc(u.username || '-')}</b>
-            <div class="user-sub"><span>${esc(u.email || '-')}</span><span>·</span><span>${esc(u.phone || '-')}</span></div>
-            <div class="user-meta"><span><i class="fa-solid fa-network-wired"></i> ${esc(u.ip || (u.ipHistory || []).slice(-1)[0] || '-')}</span><span><i class="fa-solid fa-fingerprint"></i> ${esc((u.fp || (u.fpHistory || []).slice(-1)[0] || '-').slice(0, 16))}</span></div>
-          </div>${action}
-        </div>`;
-      }).join('')
-    : `<div class="empty">${esc(emptyText)}</div>`;
-}
-
-async function loadPendingUsers() {
-  try { const r = await request('pending-users'); renderActivationList(r.users || [], 'pendingUsersList', 'Belum ada user menunggu aktivasi.', 'pending'); }
-  catch (e) { await toast('Gagal memuat registrasi', e.message, 'error'); }
-}
-
-async function loadApprovedUsers() {
-  try { const r = await request('approved-users'); renderActivationList(r.users || [], 'approvedUsersList', 'Belum ada user aktif.', 'approved'); }
-  catch (e) { await toast('Gagal memuat user aktif', e.message, 'error'); }
-}
-
-async function loadRejectedUsers() {
-  try { const r = await request('rejected-users'); renderActivationList(r.users || [], 'rejectedUsersList', 'Belum ada user ditolak.', 'rejected'); }
-  catch (e) { await toast('Gagal memuat user ditolak', e.message, 'error'); }
-}
-
-async function approveUser(username) {
-  const c = await confirmBox('Setujui aktivasi ' + username + '?');
-  if (!c) return;
+async function loadUserRegistrations() {
+  ensureShimmerStyle();
   try {
-    const r = await request('approve-user', { username });
-    await toast(r.success ? 'User disetujui' : 'Gagal', r.message || '', r.success ? 'success' : 'error');
-    if (r.success) { await Promise.all([loadPendingUsers(), loadApprovedUsers(), loadUsers(), loadDashboard()]); }
-  } catch (e) { await toast('Gagal', e.message, 'error'); }
-}
-
-async function rejectUser(username) {
-  const r = await Swal.fire({ title: 'Tolak ' + esc(username) + '?', input: 'text', inputLabel: 'Alasan (opsional)', inputPlaceholder: 'Alasan penolakan', showCancelButton: true, confirmButtonText: 'Tolak User', cancelButtonText: 'Batal', confirmButtonColor: '#ef4444' });
-  if (!r.isConfirmed) return;
-  try {
-    const x = await request('reject-user', { username, reason: r.value || '' });
-    await toast(x.success ? 'User ditolak' : 'Gagal', x.message || '', x.success ? 'success' : 'error');
-    if (x.success) { await Promise.all([loadPendingUsers(), loadRejectedUsers(), loadUsers(), loadDashboard()]); }
-  } catch (e) { await toast('Gagal', e.message, 'error'); }
+    const r = await request('user-registrations');
+    const list = r.registrations || [];
+    $('userRegistrations').innerHTML = list.length
+      ? list.map(u => {
+          const initial = (u.username || '?')[0];
+          const isUpper = initial >= 'A' && initial <= 'Z';
+          const color = isUpper ? '#00BFFF' : (initial >= 'a' && initial <= 'z' ? '#10b981' : '#64748b');
+          return `
+            <div class="user-card" onclick="openProfileModal('${esc(u.id)}')">
+              <div class="user-avatar" style="background:${color}">${esc(initial.toUpperCase())}</div>
+              <div class="user-main">
+                <b>${esc(u.username)}</b>
+                <div class="user-sub"><span>${esc(u.email || '-')}</span><span>·</span><span>${esc(u.paket || '-')}</span></div>
+                <div class="user-meta"><span><i class="fa-solid fa-calendar"></i> ${new Date(u.createdAt).toLocaleString('id-ID')}</span></div>
+              </div>
+              <div class="user-status">${userStatusBadge(u)}</div>
+            </div>
+          `;
+        }).join('')
+      : '<div class="empty">Belum ada user terdaftar.</div>';
+  } catch (e) { await toast('Gagal memuat', e.message, 'error'); }
 }
 
 async function loadBlocked() {
@@ -861,7 +906,16 @@ async function loadBlocked() {
   } catch (e) { await toast('Gagal memuat data blokir', e.message, 'error'); }
 }
 async function blockNewIP() {
-  const r = await Swal.fire({ title: 'Block IP', input: 'text', inputPlaceholder: 'contoh: 202.56.166.100', showCancelButton: true, confirmButtonText: 'Block', confirmButtonColor: '#ef4444' });
+  const r = await Swal.fire({
+    ...SwalTheme,
+    title: 'Block IP',
+    input: 'text',
+    inputPlaceholder: 'contoh: 202.56.166.100',
+    inputAttributes: { style: 'padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;box-shadow:2px 2px 0 #0F172A' },
+    showCancelButton: true,
+    confirmButtonText: 'Block',
+    confirmButtonColor: '#ef4444'
+  });
   if (!r.isConfirmed || !r.value) return;
   try { await request('block-ip', { ip: r.value.trim() }); await toast('IP diblokir', '', 'success'); loadBlocked(); }
   catch (e) { await toast('Gagal', e.message, 'error'); }
@@ -872,7 +926,16 @@ async function unblockIP(ip) {
   catch (e) { await toast('Gagal', e.message, 'error'); }
 }
 async function blockNewFP() {
-  const r = await Swal.fire({ title: 'Block FP', input: 'text', inputPlaceholder: 'fingerprint string', showCancelButton: true, confirmButtonText: 'Block', confirmButtonColor: '#ef4444' });
+  const r = await Swal.fire({
+    ...SwalTheme,
+    title: 'Block FP',
+    input: 'text',
+    inputPlaceholder: 'fingerprint string',
+    inputAttributes: { style: 'padding:11px 14px;border-radius:10px;border:2px solid #0F172A;font-weight:600;box-shadow:2px 2px 0 #0F172A' },
+    showCancelButton: true,
+    confirmButtonText: 'Block',
+    confirmButtonColor: '#ef4444'
+  });
   if (!r.isConfirmed || !r.value) return;
   try { await request('block-fp', { fingerprint: r.value.trim() }); await toast('FP diblokir', '', 'success'); loadBlocked(); }
   catch (e) { await toast('Gagal', e.message, 'error'); }
@@ -885,7 +948,7 @@ async function unblockFP(fp) {
 
 function logHtml(l) {
   const name = l.knownUser
-    ? `<b style="color:var(--primary)"><i class="fa-solid fa-user-check"></i> ${esc(l.displayName)}</b>`
+    ? `<b style="color:var(--sky)"><i class="fa-solid fa-user-check"></i> ${esc(l.displayName)}</b>`
     : `<b><i class="fa-solid fa-globe"></i> ${esc(l.ip || '-')}</b>`;
   return `<div class="log-item">
     <div class="log-head">${name} · ${esc(l.action || '-')}</div>
@@ -894,6 +957,8 @@ function logHtml(l) {
   </div>`;
 }
 async function loadLogs() {
+  ensureShimmerStyle();
+  $('allLogs').innerHTML = skeletonRows(3);
   try {
     const r = await request('logs', { limit: 200 });
     $('allLogs').innerHTML = (r.logs || []).map(logHtml).join('') || '<div class="empty">Belum ada log</div>';
@@ -913,6 +978,8 @@ function suspHtml(l) {
   </div>`;
 }
 async function loadSuspicious() {
+  ensureShimmerStyle();
+  $('suspiciousLogs').innerHTML = skeletonRows(3);
   try {
     const r = await request('suspicious-logs');
     $('suspiciousLogs').innerHTML = (r.logs || []).map(suspHtml).join('') || '<div class="empty">Tidak ada aktivitas mencurigakan</div>';
