@@ -52,10 +52,11 @@ import {
 import crypto from 'node:crypto';
 
 function timingSafeEqualStr(a, b) {
-  const ba = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  if (ba.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ba, bb);
+  try {
+    const ha = crypto.createHash('sha256').update(String(a || '')).digest();
+    const hb = crypto.createHash('sha256').update(String(b || '')).digest();
+    return crypto.timingSafeEqual(ha, hb);
+  } catch (e) { return false; }
 }
 
 async function handleLogin(req, res, ip, fp) {
@@ -97,6 +98,8 @@ async function handleLogin(req, res, ip, fp) {
 
   for (const [id, row] of Object.entries(admins)) {
     if (id === 'auth') continue;
+    if (!row || typeof row !== 'object') continue;
+    if (typeof row.username !== 'string') continue;
     const rowUsername = String(row.username || '').toLowerCase();
     let rowEmail = '';
     const d = decryptAny(row.data);
@@ -125,13 +128,37 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(401).json({ success: false, message: `Username atau password salah. Sisa ${3 - wrongCount} percobaan.` });
   }
 
+  // ── FP/IP Check dengan GRACE PERIOD ──
   const lockedIP = found.lockedIP || '';
   const lockedFP = found.lockedFP || '';
-  if (lockedIP && lockedIP !== ip) {
+  const currentFP = fp || '';
+  const currentIP = ip || '';
+
+  if (lockedIP && lockedIP !== currentIP) {
     return res.status(403).json({ success: false, error: 'ip_locked', message: 'Login cuma bisa dari jaringan yang terdaftar.' });
   }
-  if (lockedFP && lockedFP !== fp) {
-    return res.status(403).json({ success: false, error: 'fp_locked', message: 'Login cuma bisa dari perangkat yang terdaftar.' });
+
+  if (lockedFP && currentFP) {
+    const fpSame = lockedFP === currentFP;
+    const ipSame = lockedIP && lockedIP === currentIP;
+
+    if (fpSame) {
+      // OK, FP match
+    } else if (ipSame) {
+      // FP beda tapi IP sama → migrate (browser update, dsb)
+      await logActivity(found.username, 'admin_fp_rotated',
+        `FP berubah, IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${currentFP.slice(0, 16)}...`, ip, fp);
+      // Akan di-update di bawah
+    } else {
+      // FP beda & IP beda → block
+      await logActivity(found.username, 'admin_fp_locked',
+        `FP & IP beda. Prev FP: ${lockedFP.slice(0, 16)}..., New FP: ${currentFP.slice(0, 16)}..., Prev IP: ${lockedIP}, New IP: ${currentIP}`, ip, fp);
+      return res.status(403).json({
+        success: false,
+        error: 'fp_locked',
+        message: 'Login cuma bisa dari perangkat yang terdaftar.'
+      });
+    }
   }
 
   const adminData = decryptAny(found.data) || {};
@@ -162,8 +189,8 @@ async function handleLogin(req, res, ip, fp) {
   adminData.lastLoginIP = ip;
   adminData.lastLoginFP = fp;
   adminData.lastLoginAt = Date.now();
-  adminData.lockedIP = ip;
-  adminData.lockedFP = fp;
+  adminData.lockedIP = currentIP;
+  adminData.lockedFP = currentFP;
   const ips = Array.isArray(adminData.ipHistory) ? adminData.ipHistory : [];
   if (ip && (ips.length === 0 || ips[ips.length - 1] !== ip)) { ips.push(ip); if (ips.length > 10) ips.shift(); }
   adminData.ipHistory = ips;
@@ -172,7 +199,9 @@ async function handleLogin(req, res, ip, fp) {
   adminData.fpHistory = fps;
 
   await db.ref(`admin/${foundId}`).update({
-    lockedIP: ip, lockedFP: fp, data: encryptAtRest(adminData)
+    lockedIP: currentIP,
+    lockedFP: currentFP,
+    data: encryptAtRest(adminData)
   });
 
   const sessionToken = createSessionToken({ id: foundId, username: found.username, role: 'admin' });
@@ -302,7 +331,6 @@ async function handleApproveUser(req, res, session, ip, fp) {
   const { username } = req.body || {};
   const found = await findUserByUsername(username);
   if (!found) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-  if (found.row.activationStatus !== 'pending' && found.row.status !== 'pending') return res.status(409).json({ success: false, message: 'User tidak sedang menunggu aktivasi' });
   await approveUser(found.id, session.username);
   await logActivity(session.username, 'admin_approve_user', `Setujui aktivasi ${username}`, ip, fp);
   await logActivity(username, 'account_approved', `Akun disetujui oleh ${session.username}`, ip, fp);
@@ -313,10 +341,9 @@ async function handleRejectUser(req, res, session, ip, fp) {
   const { username, reason } = req.body || {};
   const found = await findUserByUsername(username);
   if (!found) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-  if (found.row.activationStatus !== 'pending' && found.row.status !== 'pending') return res.status(409).json({ success: false, message: 'User tidak sedang menunggu aktivasi' });
-  await rejectUser(found.id, session.username, reason || '');
+  await rejectUser(found.id, session.username);
   await logActivity(session.username, 'admin_reject_user', `Tolak aktivasi ${username}${reason ? ' - ' + reason : ''}`, ip, fp);
-  await logActivity(username, 'account_rejected', `Akun ditolak oleh ${session.username}${reason ? `: ${reason}` : ''}`, ip, fp);
+  await logActivity(username, 'account_rejected', `Akun ditolak oleh ${session.username}`, ip, fp);
   return res.status(200).json({ success: true, message: 'User ditolak' });
 }
 
@@ -384,15 +411,6 @@ async function handleEditUser(req, res, session, ip, fp) {
   });
   await logActivity(session.username, 'admin_edit_user', `Edit ${found.row.username}`, ip, fp);
   return res.status(200).json({ success: true, message: 'User diperbarui' });
-}
-
-async function handleUserRegistrations(req, res) {
-  return handleGetPendingUsers(req, res);
-}
-
-async function handleUserActivity(req, res) {
-  const limit = Math.min(Math.max(Number(req.body?.limit || req.query.limit || 200), 1), 500);
-  return res.status(200).json({ success: true, logs: await readLogs(limit) });
 }
 
 async function handleStats(req, res) {
@@ -470,10 +488,8 @@ export default async function handler(req, res) {
 
     if (action === 'users') return handleGetUsers(req, res);
     if (action === 'pending-users') return handleGetPendingUsers(req, res);
-    if (action === 'approved-users' || action === 'active-users') return handleGetActiveUsers(req, res);
+    if (action === 'active-users') return handleGetActiveUsers(req, res);
     if (action === 'rejected-users') return handleGetRejectedUsers(req, res);
-    if (action === 'user-registrations') return handleUserRegistrations(req, res);
-    if (action === 'user-activity') return handleUserActivity(req, res);
     if (action === 'get-user-detail') return handleGetUserDetail(req, res);
     if (action === 'add-user') return handleAddUser(req, res, session, ip, fp);
     if (action === 'edit-user') return handleEditUser(req, res, session, ip, fp);
@@ -483,10 +499,13 @@ export default async function handler(req, res) {
     if (action === 'reject-user') return handleRejectUser(req, res, session, ip, fp);
 
     if (action === 'ban-user') {
-      const { username, reason, days } = req.body || {};
+      const { username, reason, days, duration } = req.body || {};
       const found = await findUserByUsername(username);
       if (!found) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-      const durationMs = days ? Number(days) * 86400000 : 0;
+      let durationMs = 0;
+      if (duration === 'permanent' || duration === 'permanen') durationMs = 0;
+      else if (duration && /^\d+$/.test(String(duration))) durationMs = Number(duration);
+      else if (days) durationMs = Number(days) * 86400000;
       const result = await banUserWithIPFP(found.id, reason, session.username, durationMs);
       await logActivity(session.username, 'admin_ban_user', `Ban ${username} + block IP/FP`, ip, fp);
       return res.status(200).json({ success: true, message: `User dibanned + ${result.blockedIPs} IP + ${result.blockedFPs} FP diblokir`, ...result });
@@ -502,10 +521,13 @@ export default async function handler(req, res) {
     }
 
     if (action === 'ban-akses') {
-      const { username, reason, days } = req.body || {};
+      const { username, reason, days, duration } = req.body || {};
       const found = await findUserByUsername(username);
       if (!found) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-      const durationMs = days ? Number(days) * 86400000 : 0;
+      let durationMs = 0;
+      if (duration === 'permanent' || duration === 'permanen') durationMs = 0;
+      else if (duration && /^\d+$/.test(String(duration))) durationMs = Number(duration);
+      else if (days) durationMs = Number(days) * 86400000;
       await banAksesUserWithIPFP(found.id, reason, session.username, durationMs);
       await logActivity(session.username, 'admin_ban_akses', `Ban akses ${username} + block IP/FP`, ip, fp);
       return res.status(200).json({ success: true, message: 'Ban akses + IP/FP diblokir' });
@@ -521,10 +543,13 @@ export default async function handler(req, res) {
     }
 
     if (action === 'force-logout') {
-      const { username, reason, days } = req.body || {};
+      const { username, reason, days, duration } = req.body || {};
       const found = await findUserByUsername(username);
       if (!found) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-      const durationMs = days ? Number(days) * 86400000 : 0;
+      let durationMs = 0;
+      if (duration === 'permanent' || duration === 'permanen') durationMs = 0;
+      else if (duration && /^\d+$/.test(String(duration))) durationMs = Number(duration);
+      else if (days) durationMs = Number(days) * 86400000;
       await suspendUser(found.id, reason, session.username, durationMs);
       await logActivity(session.username, 'admin_force_logout', `Tangguhkan ${username}`, ip, fp);
       return res.status(200).json({ success: true, message: 'User ditangguhkan' });
@@ -583,10 +608,6 @@ export default async function handler(req, res) {
     if (action === 'clear-logs') {
       await db.ref('activity_logs').remove();
       return res.status(200).json({ success: true, message: 'Log dihapus' });
-    }
-    if (action === 'clear-suspicious') {
-      await db.ref('suspicious_logs').remove();
-      return res.status(200).json({ success: true, message: 'Log mencurigakan dihapus' });
     }
 
     return res.status(404).json({ success: false, message: `Action tidak dikenal: ${action}` });
