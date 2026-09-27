@@ -56,48 +56,50 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
     }
   }
 
-  // ── Sharing Detection (FP + IP) ──
+  // ── FP/IP Sharing Detection dengan grace period ──
   const lockedFP = data.lockedFP || '';
   const lockedIP = data.lockedIP || '';
+  const currentFP = fp || '';
+  const currentIP = ip || '';
 
-  // Grace: belum ada FP → set
-  if (!lockedFP && fp) {
-    data.lockedFP = fp;
-    data.lockedIP = ip || '';
+  if (!lockedFP && currentFP) {
+    // Belum ada FP → set
+    data.lockedFP = currentFP;
+    data.lockedIP = currentIP;
     data.lockedAt = Date.now();
     await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
   }
-  else if (lockedFP && fp) {
-    const fpSame = lockedFP === fp;
-    const ipSame = !lockedIP || !ip || lockedIP === ip;
+  else if (lockedFP && currentFP) {
+    const fpSame = lockedFP === currentFP;
+    const ipSame = !lockedIP || !currentIP || lockedIP === currentIP;
 
     if (fpSame) {
-      // FP sama, IP beda (pindah WiFi) → update IP
-      if (ip && lockedIP !== ip) {
-        data.lockedIP = ip;
+      // FP sama, update IP kalau beda
+      if (currentIP && lockedIP !== currentIP) {
+        data.lockedIP = currentIP;
         data.ipChangeAt = Date.now();
         await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
       }
     }
     else if (ipSame) {
-      // FP beda tapi IP sama → browser update / rotate → migrate FP (jangan kick)
-      data.lockedFP = fp;
+      // FP beda, IP sama → migrate
+      data.lockedFP = currentFP;
       data.fpChangedAt = Date.now();
       data.fpChangedFrom = lockedFP;
       await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
       await logActivity(row.username, 'fp_rotated',
-        `FP berubah tapi IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${fp.slice(0, 16)}...`, ip, fp);
+        `FP berubah tapi IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${currentFP.slice(0, 16)}...`, ip, fp);
     }
     else {
-      // FP & IP dua-duanya beda → SHARING
+      // FP & IP dua-duanya beda → sharing
       data.forceLogout = true;
       data.forceLogoutUntil = 0;
       data.shareDetected = {
         at: Date.now(),
         prevFP: lockedFP,
-        newFP: fp,
+        newFP: currentFP,
         prevIP: lockedIP,
-        newIP: ip,
+        newIP: currentIP,
         type: 'fp_and_ip_mismatch'
       };
       await saveUser(auth.user.id, {
@@ -108,9 +110,9 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
         forceLogout: true
       });
       await logActivity(row.username, 'sharing_detected',
-        `FP & IP beda. Prev FP: ${lockedFP.slice(0, 16)}..., New FP: ${fp.slice(0, 16)}..., Prev IP: ${lockedIP}, New IP: ${ip}`, ip, fp);
+        `FP & IP beda. Prev FP: ${lockedFP.slice(0, 16)}..., New FP: ${currentFP.slice(0, 16)}..., Prev IP: ${lockedIP}, New IP: ${currentIP}`, ip, fp);
       await detectSuspicious(auth.user, 'sharing_detected', ip, fp,
-        `Login dari device + jaringan lain. Silakan hubungi admin.`);
+        `User login dari device + jaringan lain. Silakan hubungi admin.`);
       return res.status(200).json({
         valid: false,
         forceLogout: true,
