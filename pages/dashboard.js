@@ -355,14 +355,34 @@ function logout() {
     });
 }
 
-async function checkAuthWithServer() {
+/* ============================================================
+   CHECK AUTH WITH SERVER
+   - Startup mode: retry 1x kalau 401 (cookie commit delay)
+   - Runtime mode: langsung redirect kalau 401
+   ============================================================ */
+async function checkAuthWithServer(isStartup) {
+    isStartup = isStartup === true;
     try {
         var res = await apiGet(API_USER + '?action=check-status');
         var data = res.data;
 
+        // ── 401 Handling ──
         if (res.status === 401) {
-            redirectToLogin();
-            return null;
+            if (isStartup) {
+                // Retry sekali setelah delay — cookie kadang belum ke-commit
+                await new Promise(function (r) { setTimeout(r, 600); });
+                var res2 = await apiGet(API_USER + '?action=check-status');
+                if (res2.status === 401) {
+                    redirectToLogin();
+                    return null;
+                }
+                // Kalau retry berhasil, proses data-nya
+                res = res2;
+                data = res2.data;
+            } else {
+                redirectToLogin();
+                return null;
+            }
         }
 
         if (data && data.banned) {
@@ -401,9 +421,21 @@ async function checkAuthWithServer() {
             return currentUser;
         }
 
+        // ── Data tidak valid ──
+        if (isStartup) {
+            // Retry sekali lagi sebelum nyerah
+            await new Promise(function (r) { setTimeout(r, 600); });
+            return checkAuthWithServer(false);
+        }
+
         redirectToLogin();
         return null;
     } catch (e) {
+        // ── Network error ──
+        if (isStartup) {
+            await new Promise(function (r) { setTimeout(r, 600); });
+            return checkAuthWithServer(false);
+        }
         redirectToLogin();
         return null;
     }
@@ -1139,7 +1171,7 @@ function setupEventListeners() {
 function startStatusCheck() {
     if (statusCheckInterval) clearInterval(statusCheckInterval);
     statusCheckInterval = setInterval(async function () {
-        var user = await checkAuthWithServer();
+        var user = await checkAuthWithServer(false);
         if (user) updateProfileInfo();
     }, 30000);
 }
@@ -1147,7 +1179,8 @@ function startStatusCheck() {
 document.addEventListener('DOMContentLoaded', async function () {
     if (!fingerprint) fingerprint = await getFingerprint();
 
-    var user = await checkAuthWithServer();
+    // ← isStartup=true: retry logic + delay kalau 401
+    var user = await checkAuthWithServer(true);
     if (!user) return;
 
     var maintenance = await apiGet(API_WEBSITE + '?action=maintenance-status');
