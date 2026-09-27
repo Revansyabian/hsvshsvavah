@@ -81,18 +81,15 @@ async function handleLogin(req, res, ip, fp) {
     updated.lockedAt = Date.now();
   }
   else if (currentLockedFP === fp) {
-    // FP sama, update IP (pindah WiFi itu halal)
     updated.lockedIP = ip || currentLockedIP;
   }
   else if (fpInHistory || ipInHistory) {
-    // FP/IP ada di history → migrate (device baru di jaringan sama, atau browser update)
     updated.lockedFP = fp;
     updated.lockedIP = ip || '';
     updated.fpChangedAt = Date.now();
     updated.fpChangedFrom = currentLockedFP;
   }
   else {
-    // FP & IP dua-duanya baru → tetap izinkan login, biarkan check-status yang handle sharing
     updated.lockedFP = fp;
     updated.lockedIP = ip || '';
     updated.fpChangedAt = Date.now();
@@ -128,7 +125,7 @@ async function handleLogin(req, res, ip, fp) {
     iat: Date.now()
   };
   const csrfToken = generateCSRFToken(csrfSession);
-  setSessionCookie(res, sessionToken, csrfToken);
+  setSessionCookie(res, sessionToken, csrfToken, { role: found.row.role });
 
   await logActivity(username, 'login_success', 'Login berhasil', ip, fp);
 
