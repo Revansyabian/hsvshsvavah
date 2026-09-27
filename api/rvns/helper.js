@@ -139,35 +139,31 @@ export async function findUserByEmail(email) {
   return null;
 }
 
-export async function saveUser(id, plain = {}) {
-  const ref = db.ref(`users/${id}`);
-  const existingSnap = await ref.once('value');
-  const existing = existingSnap.exists() ? existingSnap.val() : {};
-  const sensitive = { ...plain };
-  const topLevel = [
-    'username', 'role', 'status', 'banned', 'accessBanned', 'forceLogout',
-    'registered', 'activationStatus', 'createdAt', 'approvedAt', 'approvedBy',
-    'approvedIP', 'approvedFP', 'rejectedAt', 'rejectedBy', 'rejectionReason'
-  ];
-  for (const key of topLevel) delete sensitive[key];
-
-  await ref.set({
-    username: sanitize(plain.username ?? existing.username ?? '', 50),
-    role: sanitize(plain.role ?? existing.role ?? 'User', 20),
-    status: sanitize(plain.status ?? existing.status ?? 'active', 20),
-    banned: Boolean(plain.banned ?? existing.banned ?? false),
-    accessBanned: Boolean(plain.accessBanned ?? existing.accessBanned ?? false),
-    forceLogout: Boolean(plain.forceLogout ?? existing.forceLogout ?? false),
-    registered: Boolean(plain.registered ?? existing.registered ?? true),
-    activationStatus: sanitize(plain.activationStatus ?? existing.activationStatus ?? 'approved', 20),
-    approvedAt: Number(plain.approvedAt ?? existing.approvedAt ?? 0) || 0,
-    approvedBy: sanitize(plain.approvedBy ?? existing.approvedBy ?? '', 100),
-    approvedIP: sanitize(plain.approvedIP ?? existing.approvedIP ?? '', 80),
-    approvedFP: sanitize(plain.approvedFP ?? existing.approvedFP ?? '', 200),
-    rejectedAt: Number(plain.rejectedAt ?? existing.rejectedAt ?? 0) || 0,
-    rejectedBy: sanitize(plain.rejectedBy ?? existing.rejectedBy ?? '', 100),
-    rejectionReason: sanitize(plain.rejectionReason ?? existing.rejectionReason ?? '', 500),
-    createdAt: Number(plain.createdAt ?? existing.createdAt ?? Date.now()),
+export async function saveUser(id, plain) {
+  const {
+    username, role = 'User', status = 'active',
+    banned = false, accessBanned = false, forceLogout = false,
+    registered = true,
+    activationStatus = 'pending',
+    createdAt = Date.now(),
+    approvedAt = 0, approvedBy = '',
+    rejectedAt = 0, rejectedBy = '',
+    ...sensitive
+  } = plain;
+  await db.ref(`users/${id}`).set({
+    username: sanitize(username, 50),
+    role: sanitize(role, 20),
+    status: sanitize(status, 20),
+    banned: Boolean(banned),
+    accessBanned: Boolean(accessBanned),
+    forceLogout: Boolean(forceLogout),
+    registered: Boolean(registered),
+    activationStatus: sanitize(activationStatus, 20),
+    approvedAt: Number(approvedAt) || 0,
+    approvedBy: sanitize(approvedBy, 100),
+    rejectedAt: Number(rejectedAt) || 0,
+    rejectedBy: sanitize(rejectedBy, 100),
+    createdAt: Number(createdAt),
     data: encryptAtRest(sensitive)
   });
 }
@@ -189,14 +185,8 @@ export function toPublicUser(id, row) {
     activationStatus: row.activationStatus || 'approved',
     approvedAt: row.approvedAt || 0,
     approvedBy: row.approvedBy || '',
-    registeredAt: d.registeredAt || 0,
-    registeredIP: d.registeredIP || '',
-    registeredFP: d.registeredFP || '',
-    approvedIP: row.approvedIP || d.registeredIP || '',
-    approvedFP: row.approvedFP || d.registeredFP || '',
     rejectedAt: row.rejectedAt || 0,
     rejectedBy: row.rejectedBy || '',
-    rejectionReason: row.rejectionReason || d.rejectionReason || '',
     createdAt: row.createdAt || 0,
     email: d.email || '',
     phone: d.phone || '',
@@ -414,88 +404,82 @@ export async function trackUserIPFP(userId, ip, fp) {
 
 export async function checkRegisterLimit(ip, fp) {
   const now = Date.now();
-  const checks = [
-    ip && ip !== 'unknown' ? ['ip', ip] : null,
-    fp ? ['fp', fp] : null
-  ].filter(Boolean);
-  for (const [type, value] of checks) {
-    const snap = await db.ref(`register_limits/${type}_${safeKey(value)}`).once('value');
+  const results = { allowed: true, reason: '' };
+
+  if (ip && ip !== 'unknown') {
+    const snap = await db.ref(`register_limits/ip_${safeKey(ip)}`).once('value');
     const raw = snap.val();
-    const lastRegister = Number(raw?.lastRegister || decryptAny(raw?.data)?.lastRegister || 0);
-    if (lastRegister && now - lastRegister < CONFIG.REGISTER_COOLDOWN) {
-      const remainingMs = CONFIG.REGISTER_COOLDOWN - (now - lastRegister);
-      const hours = Math.ceil(remainingMs / 3600000);
-      return {
-        allowed: false,
-        error: type === 'ip' ? 'ip_limit' : 'fp_limit',
-        reason: `Kamu sudah mendaftar sebelumnya. Coba lagi ${hours} jam lagi.`,
-        remainingMs,
-        retryAfterSeconds: Math.ceil(remainingMs / 1000)
-      };
+    const d = raw?.data ? decryptAny(raw.data) : null;
+    if (d && d.lastRegister && (now - Number(d.lastRegister)) < CONFIG.REGISTER_COOLDOWN) {
+      const diff = CONFIG.REGISTER_COOLDOWN - (now - Number(d.lastRegister));
+      results.allowed = false;
+      results.reason = `IP ini sudah pernah daftar. Coba lagi ${Math.ceil(diff / 3600000)} jam lagi.`;
+      return results;
     }
   }
-  return { allowed: true, error: null, reason: '', remainingMs: 0, retryAfterSeconds: 0 };
+
+  if (fp) {
+    const snap = await db.ref(`register_limits/fp_${safeKey(fp)}`).once('value');
+    const raw = snap.val();
+    const d = raw?.data ? decryptAny(raw.data) : null;
+    if (d && d.lastRegister && (now - Number(d.lastRegister)) < CONFIG.REGISTER_COOLDOWN) {
+      const diff = CONFIG.REGISTER_COOLDOWN - (now - Number(d.lastRegister));
+      results.allowed = false;
+      results.reason = `Perangkat ini sudah pernah daftar. Coba lagi ${Math.ceil(diff / 3600000)} jam lagi.`;
+      return results;
+    }
+  }
+
+  return results;
 }
 
 export async function markRegisterLimit(ip, fp, username) {
   const now = Date.now();
-  const entries = [];
-  if (ip && ip !== 'unknown') entries.push(['ip', ip]);
-  if (fp) entries.push(['fp', fp]);
-  const claimed = [];
-  for (const [type, value] of entries) {
-    const ref = db.ref(`register_limits/${type}_${safeKey(value)}`);
-    const result = await ref.transaction(current => {
-      const currentLast = Number(current?.lastRegister || decryptAny(current?.data)?.lastRegister || 0);
-      if (currentLast && now - currentLast < CONFIG.REGISTER_COOLDOWN) return;
-      return { lastRegister: now, username: sanitize(username, 50) };
+  if (ip && ip !== 'unknown') {
+    await db.ref(`register_limits/ip_${safeKey(ip)}`).set({
+      data: encryptAtRest({ lastRegister: now, username })
     });
-    if (!result.committed) {
-      for (const path of claimed) await db.ref(path).remove();
-      return { allowed: false, error: type === 'ip' ? 'ip_limit' : 'fp_limit' };
-    }
-    claimed.push(`register_limits/${type}_${safeKey(value)}`);
   }
-  return { allowed: true };
+  if (fp) {
+    await db.ref(`register_limits/fp_${safeKey(fp)}`).set({
+      data: encryptAtRest({ lastRegister: now, username })
+    });
+  }
 }
 
-export async function releaseRegisterLimit(ip, fp) {
-  const entries = [];
-  if (ip && ip !== 'unknown') entries.push(['ip', ip]);
-  if (fp) entries.push(['fp', fp]);
-  for (const [type, value] of entries) await db.ref(`register_limits/${type}_${safeKey(value)}`).remove();
-}
-
-export async function checkResetLimit(userId) {
+export async function checkResetLimit(userId, ip, fp) {
   const snap = await db.ref(`users/${userId}`).once('value');
-  if (!snap.exists()) return { allowed: false, reason: 'User tidak ditemukan', used: 0, remaining: 0 };
+  if (!snap.exists()) return { allowed: false, reason: 'User tidak ditemukan' };
   const row = snap.val();
   const d = decryptAny(row.data) || {};
-  const now = Date.now();
   const history = Array.isArray(d.resetHistory) ? d.resetHistory : [];
+  const now = Date.now();
   const recent = history.filter(x => now - Number(x.at || 0) < 86400000);
-  const used = recent.length;
-  const remaining = Math.max(0, CONFIG.RESET_DAILY_MAX - used);
+  if (recent.length >= CONFIG.RESET_DAILY_MAX) {
+    return {
+      allowed: false,
+      reason: `Kuota reset habis (${CONFIG.RESET_DAILY_MAX}x/24 jam). Coba lagi nanti.`,
+      used: recent.length,
+      remaining: 0
+    };
+  }
   return {
-    allowed: used < CONFIG.RESET_DAILY_MAX,
-    reason: used >= CONFIG.RESET_DAILY_MAX ? 'Kuota reset habis. Coba lagi nanti.' : '',
-    used,
-    remaining
+    allowed: true,
+    used: recent.length,
+    remaining: CONFIG.RESET_DAILY_MAX - recent.length
   };
 }
 
 export async function recordReset(userId, ip, fp) {
   const snap = await db.ref(`users/${userId}`).once('value');
-  if (!snap.exists()) return { used: 0, remaining: CONFIG.RESET_DAILY_MAX };
+  if (!snap.exists()) return;
   const row = snap.val();
   const d = decryptAny(row.data) || {};
-  const now = Date.now();
   const history = Array.isArray(d.resetHistory) ? d.resetHistory : [];
-  const kept = history.filter(x => now - Number(x.at || 0) < 7 * 86400000);
-  kept.push({ at: now, ip: sanitize(ip || '', 50), fp: sanitize(fp || '', 200) });
-  d.resetHistory = kept;
+  history.push({ at: Date.now(), ip: ip || '', fp: fp || '' });
+  const cutoff = Date.now() - 86400000 * 7;
+  d.resetHistory = history.filter(x => Number(x.at || 0) > cutoff);
   d.resetCount = Number(d.resetCount || 0) + 1;
-  const recent = kept.filter(x => now - Number(x.at || 0) < 86400000).length;
   await saveUser(userId, {
     ...d,
     username: row.username,
@@ -508,14 +492,10 @@ export async function recordReset(userId, ip, fp) {
     activationStatus: row.activationStatus,
     approvedAt: row.approvedAt,
     approvedBy: row.approvedBy,
-    approvedIP: row.approvedIP,
-    approvedFP: row.approvedFP,
     rejectedAt: row.rejectedAt,
     rejectedBy: row.rejectedBy,
-    rejectionReason: row.rejectionReason,
     createdAt: row.createdAt
   });
-  return { used: recent, remaining: Math.max(0, CONFIG.RESET_DAILY_MAX - recent) };
 }
 
 export async function banUserWithIPFP(userId, reason, by, durationMs = 0) {
@@ -651,53 +631,37 @@ export async function approveUser(userId, adminUsername) {
   if (!snap.exists()) return { success: false, message: 'User tidak ditemukan' };
   const row = snap.val();
   const d = decryptAny(row.data) || {};
-  const now = Date.now();
-  const registeredIP = d.registeredIP || (Array.isArray(d.ipHistory) ? d.ipHistory[0] : '') || '';
-  const registeredFP = d.registeredFP || (Array.isArray(d.fpHistory) ? d.fpHistory[0] : '') || '';
+  d.approvedAt = Date.now();
   await saveUser(userId, {
     ...d,
-    username: row.username,
-    role: row.role || 'User',
+    username: row.username, role: row.role || 'User',
     status: 'active',
-    banned: false,
-    accessBanned: false,
-    forceLogout: false,
+    banned: false, accessBanned: false, forceLogout: false,
     registered: true,
     activationStatus: 'approved',
-    approvedAt: now,
+    approvedAt: Date.now(),
     approvedBy: adminUsername || 'admin',
-    approvedIP: registeredIP,
-    approvedFP: registeredFP,
-    rejectedAt: 0,
-    rejectedBy: '',
-    rejectionReason: '',
+    rejectedAt: 0, rejectedBy: '',
     createdAt: row.createdAt
   });
   return { success: true };
 }
 
-export async function rejectUser(userId, adminUsername, reason = '') {
+export async function rejectUser(userId, adminUsername) {
   const snap = await db.ref(`users/${userId}`).once('value');
   if (!snap.exists()) return { success: false, message: 'User tidak ditemukan' };
   const row = snap.val();
   const d = decryptAny(row.data) || {};
   await saveUser(userId, {
     ...d,
-    username: row.username,
-    role: row.role || 'User',
+    username: row.username, role: row.role || 'User',
     status: 'rejected',
-    banned: false,
-    accessBanned: false,
-    forceLogout: false,
+    banned: false, accessBanned: false, forceLogout: false,
     registered: true,
     activationStatus: 'rejected',
-    approvedAt: 0,
-    approvedBy: '',
-    approvedIP: '',
-    approvedFP: '',
+    approvedAt: 0, approvedBy: '',
     rejectedAt: Date.now(),
     rejectedBy: adminUsername || 'admin',
-    rejectionReason: sanitize(reason, 500),
     createdAt: row.createdAt
   });
   return { success: true };
