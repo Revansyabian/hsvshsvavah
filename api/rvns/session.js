@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { CONFIG } from './config.js';
 
-const COOKIE_SESSION = '__Host_session';
+const COOKIE_SESSION = 'rvs_session';
 const COOKIE_CSRF = 'csrf_token';
 
 function parseCookies(req) {
@@ -64,19 +64,17 @@ export function verifyCSRF(req, session) {
 
 export function setSessionCookie(res, sessionToken, csrfToken, user) {
   const maxAge = user ? getSessionMaxAge(user) : CONFIG.SESSION_ADMIN_MAX_AGE;
-  const secure = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
-  const secureAttr = secure ? '; Secure' : '';
-  res.setHeader('Set-Cookie', [
-    `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly${secureAttr}; SameSite=Lax; Max-Age=${maxAge}`,
-    `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; Path=/${secureAttr}; SameSite=Lax; Max-Age=${maxAge}`
-  ]);
+  const cookies = [
+    `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`,
+    `${COOKIE_CSRF}=${csrfToken}; Path=/; Secure; SameSite=None; Max-Age=${maxAge}`
+  ];
+  res.setHeader('Set-Cookie', cookies);
 }
 
 export function clearSessionCookie(res) {
-  const secure = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
-  const secureAttr = secure ? '; Secure' : '';
-  res.setHeader('Set-Cookie', [
-    `${COOKIE_SESSION}=; Path=/; HttpOnly${secureAttr}; SameSite=Lax; Max-Age=0`,
-    `${COOKIE_CSRF}=; Path=/${secureAttr}; SameSite=Lax; Max-Age=0`
-  ]);
+  const cookies = [
+    `${COOKIE_SESSION}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`,
+    `${COOKIE_CSRF}=; Path=/; Secure; SameSite=None; Max-Age=0`
+  ];
+  res.setHeader('Set-Cookie', cookies);
 }
