@@ -66,7 +66,6 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* ─── Header ──────────────────────────────────── */
   .login-header { margin-bottom: 28px; }
 
   .brand-line {
@@ -103,7 +102,6 @@
     margin-top: 6px;
   }
 
-  /* ─── Form ────────────────────────────────────── */
   .form-group { margin-bottom: 20px; }
 
   .form-group label {
@@ -318,26 +316,45 @@
 <div class="login-container">
     <div class="login-card">
         <div class="login-header">
-            <div class="brand-line">
-                <span class="brand-text">Top Up</span>
-            </div>
+           
             <h1>Selamat datang</h1>
             <p>Masuk untuk melanjutkan</p>
         </div>
 
-        <div class="form-group">
-            <label for="username"><i class="fas fa-user"></i> Username</label>
-            <input type="text" id="username" placeholder="Masukkan username" class="form-input" autocomplete="username">
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-            <label for="password"><i class="fas fa-lock"></i> Password</label>
-            <div class="password-wrapper">
-                <input type="password" id="password" placeholder="Masukkan password" class="form-input" maxlength="20" autocomplete="current-password">
-                <i id="togglePassword" class="fas fa-eye-slash" aria-label="Tampilkan password"></i>
+       
+        <form id="loginForm" autocomplete="on" novalidate onsubmit="event.preventDefault(); login();">
+            <div class="form-group">
+                <label for="username"><i class="fas fa-user"></i> Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="Masukkan username"
+                    class="form-input"
+                    autocomplete="username"
+                    autocapitalize="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    required>
             </div>
-            <div class="password-counter"><span id="passwordCharCount">0/20</span></div>
-        </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="password"><i class="fas fa-lock"></i> Password</label>
+                <div class="password-wrapper">
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Masukkan password"
+                        class="form-input"
+                        maxlength="20"
+                        autocomplete="current-password"
+                        required>
+                    <i id="togglePassword" class="fas fa-eye-slash" aria-label="Tampilkan password"></i>
+                </div>
+                <div class="password-counter"><span id="passwordCharCount">0/20</span></div>
+            </div>
+        </form>
 
         <div class="login-footer">
             <i class="fas fa-info-circle"></i>
@@ -348,7 +365,7 @@
             <div class="g-recaptcha" data-sitekey="6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT"></div>
         </div>
 
-        <button class="btn btn-primary" id="btnLogin" onclick="login()">
+        <button type="button" class="btn btn-primary" id="btnLogin" onclick="login()">
             <i class="fas fa-sign-in-alt"></i> Login
         </button>
 
