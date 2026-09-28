@@ -65,16 +65,16 @@ export function verifyCSRF(req, session) {
 export function setSessionCookie(res, sessionToken, csrfToken, user) {
   const maxAge = user ? getSessionMaxAge(user) : CONFIG.SESSION_ADMIN_MAX_AGE;
   const cookies = [
-    `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`,
-    `${COOKIE_CSRF}=${csrfToken}; Path=/; Secure; SameSite=None; Max-Age=${maxAge}`
+    `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`,
+    `${COOKIE_CSRF}=${csrfToken}; Path=/; Secure; SameSite=Lax; Max-Age=${maxAge}`
   ];
   res.setHeader('Set-Cookie', cookies);
 }
 
 export function clearSessionCookie(res) {
   const cookies = [
-    `${COOKIE_SESSION}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`,
-    `${COOKIE_CSRF}=; Path=/; Secure; SameSite=None; Max-Age=0`
+    `${COOKIE_SESSION}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+    `${COOKIE_CSRF}=; Path=/; Secure; SameSite=Lax; Max-Age=0`
   ];
   res.setHeader('Set-Cookie', cookies);
 }
