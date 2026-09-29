@@ -69,7 +69,7 @@ async function handleLogin(req, res, ip, fp) {
 
   const updated = { ...found.data };
 
-  // ── FP/IP Migration (grace period untuk FP baru) ──
+  // ═══ SET lockedFP + lockedIP di login (KUNCI ANTI MENTAL) ═══
   const currentLockedFP = updated.lockedFP || '';
   const currentLockedIP = updated.lockedIP || '';
   const fpInHistory = Array.isArray(updated.fpHistory) && updated.fpHistory.includes(fp);
@@ -95,6 +95,7 @@ async function handleLogin(req, res, ip, fp) {
     updated.fpChangedAt = Date.now();
     updated.fpChangedFrom = currentLockedFP;
   }
+  // ══════════════════════════════════════════════════════════
 
   updated.lastLogin = { ip, fingerprint: fp, timestamp: Date.now() };
 
@@ -118,12 +119,7 @@ async function handleLogin(req, res, ip, fp) {
     username: found.row.username,
     role: found.row.role
   });
-  const csrfSession = {
-    uid: found.id,
-    username: found.row.username,
-    role: found.row.role,
-    iat: Date.now()
-  };
+  const csrfSession = { uid: found.id, username: found.row.username, role: found.row.role };
   const csrfToken = generateCSRFToken(csrfSession);
   setSessionCookie(res, sessionToken, csrfToken, { role: found.row.role });
 
