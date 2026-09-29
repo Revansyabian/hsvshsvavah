@@ -6,9 +6,14 @@ const COOKIE_CSRF = 'csrf_token';
 
 function parseCookies(req) {
   const out = {};
-  (req.headers.cookie || '').split(';').forEach(p => {
+  const raw = req.headers.cookie || '';
+  raw.split(';').forEach(p => {
     const i = p.indexOf('=');
-    if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+    if (i > 0) {
+      const k = p.slice(0, i).trim();
+      const v = p.slice(i + 1).trim();
+      try { out[k] = decodeURIComponent(v); } catch { out[k] = v; }
+    }
   });
   return out;
 }
@@ -33,7 +38,8 @@ export function getSessionMaxAge(user) {
 }
 
 export function verifySession(req) {
-  const t = parseCookies(req)[COOKIE_SESSION];
+  const cookies = parseCookies(req);
+  const t = cookies[COOKIE_SESSION];
   if (!t) return null;
   const parts = t.split('.');
   if (parts.length !== 2) return null;
@@ -43,7 +49,8 @@ export function verifySession(req) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
     const d = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
-    return d.exp > Date.now() ? d : null;
+    if (!d.exp || d.exp <= Date.now()) return null;
+    return d;
   } catch { return null; }
 }
 
@@ -62,19 +69,20 @@ export function verifyCSRF(req, session) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * Set session cookie — 2 cookie dalam 1 header (Vercel-safe)
+ * Pakai SameSite=None + Secure (wajib untuk cross-origin / mobile)
+ * Cookie name pakai prefix `rvs_` biar tidak bentrok dengan default
+ */
 export function setSessionCookie(res, sessionToken, csrfToken, user) {
   const maxAge = user ? getSessionMaxAge(user) : CONFIG.SESSION_ADMIN_MAX_AGE;
-  const cookies = [
-    `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`,
-    `${COOKIE_CSRF}=${csrfToken}; Path=/; Secure; SameSite=Lax; Max-Age=${maxAge}`
-  ];
-  res.setHeader('Set-Cookie', cookies);
+  const sessionCookie = `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`;
+  const csrfCookie = `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; Path=/; Secure; SameSite=None; Max-Age=${maxAge}`;
+  res.setHeader('Set-Cookie', [sessionCookie, csrfCookie]);
 }
 
 export function clearSessionCookie(res) {
-  const cookies = [
-    `${COOKIE_SESSION}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
-    `${COOKIE_CSRF}=; Path=/; Secure; SameSite=Lax; Max-Age=0`
-  ];
-  res.setHeader('Set-Cookie', cookies);
+  const sessionCookie = `${COOKIE_SESSION}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`;
+  const csrfCookie = `${COOKIE_CSRF}=; Path=/; Secure; SameSite=None; Max-Age=0`;
+  res.setHeader('Set-Cookie', [sessionCookie, csrfCookie]);
 }
