@@ -570,15 +570,9 @@ async function login() {
     loginInProgress = false;
 }
 
-/* ============================================================
-   AUTO CHECK SESSION — FIX
-   Jangan redirect langsung. Cek dulu apakah cookie session masih valid
-   dengan hit endpoint /api/user?action=check-status. Kalau valid → baru redirect.
-   ============================================================ */
 async function autoCheckSession() {
     var saved = storageGet('sesi_pengguna');
     if (!saved) return;
-
     try {
         var session = JSON.parse(saved);
         var age = Date.now() - (session.timestamp || 0);
@@ -587,7 +581,6 @@ async function autoCheckSession() {
             return;
         }
 
-        // Cek ke server apakah cookie session masih valid
         if (!fingerprint) fingerprint = await getFingerprint();
         var res = await fetch(API_BASE + '/user?action=check-status', {
             method: 'GET',
@@ -597,7 +590,6 @@ async function autoCheckSession() {
         });
 
         if (res.status !== 200) {
-            // Cookie expired / invalid → hapus storage, tetap di login page
             storageRemove('sesi_pengguna');
             return;
         }
@@ -606,12 +598,10 @@ async function autoCheckSession() {
         try { data = await res.json(); } catch (e) {}
 
         if (data && data.valid && data.user) {
-            // Session valid → redirect ke dashboard
             window.location.href = '/pages/dashboard';
             return;
         }
 
-        // Ada kondisi banned/expired/maintenance → hapus storage lokal
         storageRemove('sesi_pengguna');
     } catch (e) {
         storageRemove('sesi_pengguna');
