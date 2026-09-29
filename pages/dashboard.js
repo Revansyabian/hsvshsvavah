@@ -355,28 +355,20 @@ function logout() {
     });
 }
 
-/* ============================================================
-   CHECK AUTH WITH SERVER
-   - Startup mode: retry 1x kalau 401 (cookie commit delay)
-   - Runtime mode: langsung redirect kalau 401
-   ============================================================ */
 async function checkAuthWithServer(isStartup) {
     isStartup = isStartup === true;
     try {
         var res = await apiGet(API_USER + '?action=check-status');
         var data = res.data;
 
-        // ── 401 Handling ──
         if (res.status === 401) {
             if (isStartup) {
-                // Retry sekali setelah delay — cookie kadang belum ke-commit
                 await new Promise(function (r) { setTimeout(r, 600); });
                 var res2 = await apiGet(API_USER + '?action=check-status');
                 if (res2.status === 401) {
                     redirectToLogin();
                     return null;
                 }
-                // Kalau retry berhasil, proses data-nya
                 res = res2;
                 data = res2.data;
             } else {
@@ -421,9 +413,7 @@ async function checkAuthWithServer(isStartup) {
             return currentUser;
         }
 
-        // ── Data tidak valid ──
         if (isStartup) {
-            // Retry sekali lagi sebelum nyerah
             await new Promise(function (r) { setTimeout(r, 600); });
             return checkAuthWithServer(false);
         }
@@ -431,7 +421,6 @@ async function checkAuthWithServer(isStartup) {
         redirectToLogin();
         return null;
     } catch (e) {
-        // ── Network error ──
         if (isStartup) {
             await new Promise(function (r) { setTimeout(r, 600); });
             return checkAuthWithServer(false);
@@ -1179,7 +1168,6 @@ function startStatusCheck() {
 document.addEventListener('DOMContentLoaded', async function () {
     if (!fingerprint) fingerprint = await getFingerprint();
 
-    // ← isStartup=true: retry logic + delay kalau 401
     var user = await checkAuthWithServer(true);
     if (!user) return;
 
