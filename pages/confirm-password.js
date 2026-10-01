@@ -54,7 +54,9 @@ async function getFingerprint() {
             }
         }
     } catch (e) {}
-    return CryptoJS.MD5(fp).toString();
+    const data = new TextEncoder().encode(fp);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 function getUrlParam(name) {
@@ -145,38 +147,40 @@ function tampilkanHalamanMaintenance(dataMaintenance) {
     var sampai = (dataMaintenance && (dataMaintenance.until || dataMaintenance.sampai)) ? (dataMaintenance.until || dataMaintenance.sampai) : null;
     var teksEstimasi = sanitize(sampai ? 'Estimasi selesai: ' + new Date(sampai).toLocaleString('id-ID') : 'Mohon maaf atas ketidaknyamanan ini.');
 
-    var html = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0f2fe 0%,#bae6fd 50%,#7dd3fc 100%);padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
-        '<div style="background:#ffffff;border-radius:24px;padding:48px 36px;width:100%;max-width:440px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,0.1);">' +
-        '<div style="width:90px;height:90px;background:#fef3c7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">' +
-        '<i class="fas fa-tools" style="font-size:40px;color:#f59e0b;"></i>' +
+    var html = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f7fb;padding:20px;font-family:\'Inter\',\'Segoe UI\',sans-serif;">' +
+        '<div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;width:100%;max-width:440px;text-align:center;">' +
+        '<div style="width:88px;height:88px;background:#fef3c7;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">' +
+        '<i class="fas fa-tools" style="font-size:36px;color:#f59e0b;"></i>' +
         '</div>' +
-        '<h1 style="color:#0c4a6e;font-size:24px;font-weight:700;margin-bottom:8px;">' + judul + '</h1>' +
-        '<p style="color:#64748b;font-size:14px;margin-bottom:6px;line-height:1.6;">' + pesan + '</p>' +
-        '<div style="background:#fef3c7;color:#92400e;padding:12px 16px;border-radius:12px;font-weight:600;font-size:13px;margin:16px 0 24px;">' + teksEstimasi + '</div></div></div>';
+        '<h1 style="color:#0F172A;font-size:24px;font-weight:900;margin-bottom:8px;letter-spacing:-0.03em;">' + judul + '</h1>' +
+        '<p style="color:#64748b;font-size:14px;font-weight:500;margin-bottom:6px;line-height:1.6;">' + pesan + '</p>' +
+        '<div style="background:#E0F5FF;color:#0F172A;border:2px solid #0F172A;border-radius:10px;padding:12px 16px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 #0F172A;margin-top:16px;">' + teksEstimasi + '</div></div></div>';
 
     safeSetHTML(document.body, html);
 }
 
 function tampilkanHalamanBlokir() {
-    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
-        '<div style="background:#ffffff;border-radius:24px;padding:48px 36px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.08);border:1px solid #e2e8f0;">' +
-        '<i class="fas fa-lock" style="font-size:64px;color:#ef4444;margin-bottom:16px;display:block;"></i>' +
-        '<span style="display:inline-block;background:#fef2f2;color:#dc2626;padding:4px 16px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border:1px solid #fecaca;margin-bottom:12px;"><i class="fas fa-exclamation-circle"></i> DIBLOKIR</span>' +
-        '<h1 style="font-size:24px;font-weight:700;color:#1e293b;margin-bottom:8px;">AKSES DITOLAK</h1>' +
-        '<p style="font-size:14px;color:#64748b;line-height:1.6;">Akses ditolak, jika ingin dibuka silakan hubungi admin.</p>' +
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f7fb;padding:20px;font-family:\'Inter\',sans-serif;">' +
+        '<div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;max-width:440px;width:100%;text-align:center;">' +
+        '<div style="width:88px;height:88px;background:#fee2e2;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">' +
+        '<i class="fas fa-lock" style="font-size:36px;color:#ef4444;"></i>' +
+        '</div>' +
+        '<h1 style="color:#0F172A;font-size:24px;font-weight:900;margin-bottom:12px;letter-spacing:-0.03em;">AKSES DITOLAK</h1>' +
+        '<p style="color:#64748b;font-size:14px;line-height:1.6;">Akses ditolak, jika ingin dibuka silakan hubungi admin.</p>' +
         '</div></div>';
 }
 
 function tampilkanHalamanBanAkses(until) {
     var untilText = sanitize((until || 0) === 0 ? 'PERMANEN' : ('sampai ' + new Date(until).toLocaleString('id-ID')));
-    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f9ff 0%,#bae6fd 50%,#7dd3fc 100%);padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
-        '<div style="background:#ffffff;border-radius:24px;padding:48px 36px;width:100%;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,191,255,0.15);border:1px solid rgba(0,191,255,0.1);">' +
-        '<div style="font-size:72px;color:#f59e0b;margin-bottom:12px;">🚫</div>' +
-        '<h2 style="font-size:24px;font-weight:700;color:#0c4a6e;margin-bottom:8px;">AKSES DIBLOKIR</h2>' +
-        '<p style="font-size:14px;color:#64748b;margin-bottom:6px;">Maaf, akses Anda diblokir oleh admin.</p>' +
-        '<div style="background:#fef3c7;color:#92400e;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px;margin:16px 0 24px;">Durasi: ' + untilText + '</div>' +
-        '<button onclick="window.open(\'https://wa.me/' + WHATSAPP_NUMBER + '?text=Assalamualaikum%20admin%2C%20akses%20saya%20diblokir\',\'_blank\')" style="display:inline-flex;align-items:center;gap:10px;padding:12px 32px;background:#25D366;color:#fff;border:none;border-radius:30px;font-weight:600;font-size:15px;cursor:pointer;transition:0.2s;font-family:\'Segoe UI\',sans-serif;">' +
-        '<i class="fab fa-whatsapp"></i> Hubungi Admin</button></div></div>';
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f7fb;padding:20px;font-family:\'Inter\',sans-serif;">' +
+        '<div style="background:#FFFFFF;border:2px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;padding:40px 32px 36px;width:100%;max-width:440px;text-align:center;">' +
+        '<div style="width:88px;height:88px;background:#fee2e2;border:2px solid #0F172A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;box-shadow:3px 3px 0 #0F172A;">' +
+        '<i class="fas fa-ban" style="font-size:36px;color:#ef4444;"></i>' +
+        '</div>' +
+        '<h1 style="color:#0F172A;font-size:24px;font-weight:900;margin-bottom:12px;letter-spacing:-0.03em;">AKSES DIBLOKIR</h1>' +
+        '<p style="color:#64748b;font-size:14px;margin-bottom:6px;">Maaf, akses Anda diblokir oleh admin.</p>' +
+        '<div style="background:#fef3c7;color:#92400e;border:2px solid #0F172A;border-radius:10px;padding:12px 16px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 #0F172A;margin-top:16px;">Durasi: ' + untilText + '</div>' +
+        '</div></div>';
 }
 
 async function periksaMaintenance() {
@@ -233,6 +237,7 @@ function ensureRecaptchaRendered(attempt) {
     }
 }
 
+/* ═══ FIX: checkTokenOnLoad — langsung verify token, tidak cek maintenance/blocked dulu ═══ */
 async function checkTokenOnLoad() {
     resetToken = getUrlParam('token');
 
@@ -243,25 +248,9 @@ async function checkTokenOnLoad() {
     }
 
     showPage('loadingPage');
-
     if (!fingerprint) fingerprint = await getFingerprint();
 
-    var maintenance = await periksaMaintenance();
-    if (maintenance) {
-        tampilkanHalamanMaintenance(maintenance);
-        return;
-    }
-
-    var blockData = await checkIfBlocked();
-    if (blockData && blockData.blockType === 'ban_akses') {
-        tampilkanHalamanBanAkses(blockData.banAksesUntil || 0);
-        return;
-    }
-    if (blockData && blockData.blocked) {
-        tampilkanHalamanBlokir();
-        return;
-    }
-
+    // Langsung verify token, jangan cek maintenance/blocked dulu
     var result = await verifyToken();
 
     if (result && result.valid) {
