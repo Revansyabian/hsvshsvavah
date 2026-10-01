@@ -69,20 +69,28 @@ export function verifyCSRF(req, session) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/**
- * Set session cookie — 2 cookie dalam 1 header (Vercel-safe)
- * Pakai SameSite=None + Secure (wajib untuk cross-origin / mobile)
- * Cookie name pakai prefix `rvs_` biar tidak bentrok dengan default
- */
 export function setSessionCookie(res, sessionToken, csrfToken, user) {
   const maxAge = user ? getSessionMaxAge(user) : CONFIG.SESSION_ADMIN_MAX_AGE;
   const sessionCookie = `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`;
   const csrfCookie = `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; Path=/; Secure; SameSite=None; Max-Age=${maxAge}`;
-  res.setHeader('Set-Cookie', [sessionCookie, csrfCookie]);
+  
+  // FIX: pakai appendHeader biar Vercel tidak strip salah satu Set-Cookie
+  if (typeof res.appendHeader === 'function') {
+    res.appendHeader('Set-Cookie', sessionCookie);
+    res.appendHeader('Set-Cookie', csrfCookie);
+  } else {
+    res.setHeader('Set-Cookie', [sessionCookie, csrfCookie]);
+  }
 }
 
 export function clearSessionCookie(res) {
   const sessionCookie = `${COOKIE_SESSION}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`;
   const csrfCookie = `${COOKIE_CSRF}=; Path=/; Secure; SameSite=None; Max-Age=0`;
-  res.setHeader('Set-Cookie', [sessionCookie, csrfCookie]);
+  
+  if (typeof res.appendHeader === 'function') {
+    res.appendHeader('Set-Cookie', sessionCookie);
+    res.appendHeader('Set-Cookie', csrfCookie);
+  } else {
+    res.setHeader('Set-Cookie', [sessionCookie, csrfCookie]);
+  }
 }
