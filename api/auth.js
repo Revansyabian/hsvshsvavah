@@ -224,10 +224,137 @@ async function handleRequestReset(req, res, ip, fp) {
     status: found.row.status
   });
 
-  const link = `${CONFIG.BASE_URL}/pages/confirm-password?token=${token}`;
+  // ═══ FIX: BASE_URL fallback ke Vercel URL ═══
+  const baseUrl = (CONFIG.BASE_URL || '').replace(/\/$/, '') ||
+                  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+                  'https://hsvshsvavah-fawn.vercel.app';
+  const link = `${baseUrl}/pages/confirm-password?token=${token}`;
 
   if (CONFIG.RESEND_API_KEY) {
     try {
+      const emailHtml = `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Reset Password - Top Up BUSSID</title>
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; background: #F0F4F8; font-family: 'Inter', Arial, Helvetica, sans-serif; }
+  a { text-decoration: none; }
+  @media screen and (max-width: 600px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 20px !important; padding-right: 20px !important; }
+    .h1 { font-size: 22px !important; line-height: 1.2 !important; }
+    .btn { display: block !important; width: 100% !important; padding: 18px 20px !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#F0F4F8;font-family:'Inter',Arial,Helvetica,sans-serif;">
+
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#F0F4F8;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+
+        <table class="container" role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" style="max-width:520px;background:#FFFFFF;border:3px solid #0F172A;border-radius:14px;box-shadow:6px 6px 0 #0F172A;">
+
+          <tr>
+            <td class="px" style="padding:40px 40px 8px;text-align:center;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;">
+                <tr>
+                  <td style="display:inline-block;padding:7px 16px;background:#00BFFF;border:2px solid #0F172A;border-radius:999px;box-shadow:3px 3px 0 #0F172A;">
+                    <span style="font-size:11px;font-weight:900;letter-spacing:2px;color:#FFFFFF;text-transform:uppercase;font-family:'Inter',Arial,sans-serif;">
+                      TOP UP BUSSID
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:24px 40px 12px;text-align:center;">
+              <h1 class="h1" style="margin:0;font-size:26px;font-weight:900;letter-spacing:-0.5px;color:#0F172A;line-height:1.2;font-family:'Inter',Arial,sans-serif;">
+                Reset Password
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:0 40px 32px;text-align:center;">
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#64748B;font-weight:500;font-family:'Inter',Arial,sans-serif;">
+                Kami menerima permintaan reset password untuk akun kamu. Klik tombol di bawah untuk membuat password baru.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:0 40px 20px;text-align:center;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate;">
+                <tr>
+                  <td align="center" style="background:#00BFFF;border:3px solid #0F172A;border-radius:12px;box-shadow:4px 4px 0 #0F172A;text-align:center;">
+                    <a class="btn" href="${link}" target="_blank" style="display:block;padding:16px 32px;font-size:13px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;color:#FFFFFF;text-decoration:none;font-family:'Inter',Arial,sans-serif;text-align:center;line-height:1.2;">
+                      Ganti Password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:0 40px 32px;text-align:center;">
+              <p style="margin:0 0 8px;font-size:12px;line-height:1.6;color:#94A3B8;font-weight:600;font-family:'Inter',Arial,sans-serif;">
+                Jika tombol tidak berfungsi, pencet link di bawah ini:
+              </p>
+              <p style="margin:0;font-size:11px;line-height:1.5;color:#0095CC;font-weight:700;font-family:'JetBrains Mono','Courier New',monospace;word-break:break-all;">
+                <a href="${link}" style="color:#0095CC;text-decoration:underline;word-break:break-all;">
+                  ${link}
+                </a>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:0 40px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="border-top:2px dashed #94A3B8;height:1px;line-height:1px;font-size:0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:0 40px 40px;text-align:center;">
+              <p style="margin:0;font-size:12px;line-height:1.6;color:#94A3B8;font-weight:600;font-family:'Inter',Arial,sans-serif;">
+                Link berlaku 1x24 jam. Kalau kamu tidak meminta reset password, abaikan email ini.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <table class="container" role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" style="max-width:520px;margin-top:20px;">
+          <tr>
+            <td class="px" style="padding:0 20px;text-align:center;">
+              <p style="margin:0;font-size:11px;line-height:1.6;color:#94A3B8;font-weight:600;font-family:'Inter',Arial,sans-serif;">
+                © 2026 Revan Store · Email otomatis, jangan dibalas
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
+
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -238,7 +365,7 @@ async function handleRequestReset(req, res, ip, fp) {
           from: CONFIG.EMAIL_FROM,
           to: [found.data.email],
           subject: 'Reset Password',
-          html: `<p>Klik link berikut untuk reset password:</p><p><a href="${link}">${link}</a></p><p>Link expired dalam 15 menit.</p>`
+          html: emailHtml
         })
       });
     } catch (e) { console.error('email error:', e?.message); }
