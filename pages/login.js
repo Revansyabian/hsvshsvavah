@@ -70,7 +70,6 @@ async function getFingerprint() {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ─── FIX: sign fingerprint via server ───
 async function getSignedFingerprint() {
   if (!fingerprint) fingerprint = await getFingerprint();
   if (fpSignature) return { fp: fingerprint, sig: fpSignature };
@@ -89,13 +88,6 @@ async function getSignedFingerprint() {
     }
   } catch (e) {}
   return { fp: fingerprint, sig: '' };
-}
-
-function getBlockDuration(attempts) {
-  if (attempts >= 15) return 1440;
-  if (attempts >= 10) return 60;
-  if (attempts >= 5) return 15;
-  return 0;
 }
 
 async function apiGet(url) {
@@ -201,7 +193,6 @@ function updatePasswordCounter() {
   if (input && counter) counter.textContent = input.value.length + '/' + MAX_PASSWORD_LENGTH;
 }
 
-// ─── FIX LOGIN LOOP: auto-redirect cek cookie via check-status ───
 async function autoCheckSession() {
   try {
     const { fp, sig } = await getSignedFingerprint();
@@ -222,6 +213,32 @@ async function autoCheckSession() {
       window.location.href = '/pages/dashboard';
     }
   } catch (e) {}
+}
+
+async function waitForSessionCommit(maxAttempts) {
+  maxAttempts = maxAttempts || 10;
+  for (var i = 0; i < maxAttempts; i++) {
+    try {
+      const { fp, sig } = await getSignedFingerprint();
+      const headers = { 'X-Fingerprint': fp };
+      if (sig) headers['X-FP-Sig'] = sig;
+
+      const res = await fetch(API_BASE + '/user?action=check-status', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers,
+        cache: 'no-store'
+      });
+
+      if (res.status === 200) {
+        const data = await res.json();
+        if (data && data.valid && data.user) return true;
+      }
+    } catch (e) {}
+
+    await new Promise(function (r) { setTimeout(r, 300); });
+  }
+  return false;
 }
 
 async function login() {
@@ -335,6 +352,22 @@ async function login() {
     }
 
     if (result && result.success) {
+      // FIX: tunggu cookie ke-commit sebelum redirect
+      var sessionOk = await waitForSessionCommit(12);
+
+      if (!sessionOk) {
+        hideLoading();
+        Swal.fire({
+          icon: "error",
+          title: "Sesi Gagal",
+          text: "Login berhasil tapi sesi gagal tersimpan. Coba lagi.",
+          confirmButtonColor: "#ef4444"
+        });
+        try { grecaptcha.reset(); } catch (e) {}
+        loginInProgress = false;
+        return;
+      }
+
       hideLoading();
       Swal.fire({
         icon: "success",
@@ -348,7 +381,6 @@ async function login() {
       return;
     }
 
-    // Gagal login
     hideLoading();
     try { grecaptcha.reset(); } catch (e) {}
     Swal.fire({
@@ -368,7 +400,6 @@ async function login() {
 document.addEventListener('DOMContentLoaded', async function () {
   if (!fingerprint) fingerprint = await getFingerprint();
 
-  // Cek kalau sudah login → redirect
   await autoCheckSession();
 
   var maintenance = await periksaMaintenance();
