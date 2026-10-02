@@ -14,7 +14,7 @@ function allowedRate(ip) {
   const now = Date.now();
   const row = rateMap.get(ip) || [];
   const fresh = row.filter(t => now - t < 60000);
-  if (fresh.length >= 30) { rateMap.set(ip, fresh); return false; }
+  if (fresh.length >= 60) { rateMap.set(ip, fresh); return false; }
   fresh.push(now);
   rateMap.set(ip, fresh);
   return true;
@@ -22,8 +22,9 @@ function allowedRate(ip) {
 
 function sameOrigin(req) {
   const origin = req.headers.origin;
-  if (!origin) return false; // ─── FIX: state-changing butuh origin ───
+  if (!origin) return false;
   const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
+  if (!allowed.length) return true;
   return allowed.includes(origin);
 }
 
@@ -34,7 +35,6 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   if (!sameOrigin(req)) return res.status(403).json({ error: 'Origin tidak diizinkan' });
 
   const origin = req.headers.origin;
@@ -52,13 +52,23 @@ export default async function handler(req, res) {
     const { endpoint, method, body, authToken } = req.body || {};
     if (!ALLOWED_ENDPOINTS.has(endpoint)) return res.status(403).json({ error: 'Endpoint tidak diizinkan' });
     if ((method || 'POST') !== 'POST') return res.status(405).json({ error: 'Only POST is allowed' });
-    if (typeof authToken !== 'string' || authToken.length < 10 || authToken.length > 4096) {
-      return res.status(401).json({ error: 'PlayFab session tidak valid' });
+
+    const isLoginEndpoint = endpoint === '/Client/LoginWithAndroidDeviceID';
+
+    if (!isLoginEndpoint) {
+      if (typeof authToken !== 'string' || authToken.length < 10 || authToken.length > 4096) {
+        return res.status(401).json({ error: 'PlayFab session tidak valid' });
+      }
+    }
+
+    const upstreamHeaders = { 'Content-Type': 'application/json' };
+    if (!isLoginEndpoint && authToken) {
+      upstreamHeaders['X-Authorization'] = authToken;
     }
 
     const response = await fetch(TARGET + endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Authorization': authToken },
+      headers: upstreamHeaders,
       body: JSON.stringify(body || {})
     });
     const text = await response.text();
