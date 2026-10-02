@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ server.disable('x-powered-by');
 server.set('trust proxy', 1);
 
 server.use(helmet({ contentSecurityPolicy: false }));
+
 server.use(cors({
   origin: (origin, cb) => {
     const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -28,15 +30,39 @@ server.use(cors({
   credentials: true
 }));
 
-server.use(express.json({ limit: '10kb', strict: true }));
+server.use(express.json({
+  limit: '10kb',
+  strict: true,
+  verify: (req, res, buf) => {
+    const body = buf.toString('utf8');
+    if (/"__proto__"|"constructor"\s*:|"prototype"\s*:/.test(body)) {
+      throw new Error('Prototype pollution attempt');
+    }
+  }
+}));
 server.use(express.urlencoded({ extended: false, limit: '10kb' }));
 
+server.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 function wrap(handler) {
-  return async (req, res) => {
-    try { return await handler(req, res); }
-    catch (e) {
-      console.error('[ERR]', req.method, req.originalUrl, e?.stack || e?.message || e);
-      if (!res.headersSent) return res.status(500).json({ success: false, message: 'Internal server error' });
+  return async (req, res, next) => {
+    try {
+      const result = await handler(req, res);
+      if (res.headersSent || res.writableEnded) return;
+      if (result !== undefined) return;
+      return next();
+    } catch (e) {
+      console.error('[ERR]', req.method, req.originalUrl, e?.message || e);
+      if (!res.headersSent) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+      }
     }
   };
 }
@@ -63,6 +89,8 @@ server.use(express.static(__dirname, { index: false }));
 server.use((req, res) => res.status(404).send('Not Found'));
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server ready on http://localhost:${PORT}`));
+if (!process.env.VERCEL) {
+  server.listen(PORT, () => console.log(`Server ready on http://localhost:${PORT}`));
+}
 
 export default server;
