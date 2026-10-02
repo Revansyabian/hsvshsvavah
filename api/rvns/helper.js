@@ -1,3 +1,4 @@
+// rvns/helper.js
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import CryptoJS from 'crypto-js';
@@ -41,19 +42,56 @@ export function decryptAny(raw) {
 export const sanitize = (s, m = 500) => s ? String(s).slice(0, m).replace(/[<>"'`]/g, '') : '';
 export const safeKey = v => String(v || 'unknown').replace(/[.#$\[\]\/]/g, '_');
 
+export function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// ─── FIX: getIP trust Express req.ip ───
 export function getIP(req) {
+  if (req.ip && req.ip !== '::1' && req.ip !== '127.0.0.1') {
+    return String(req.ip).replace(/^::ffff:/, '');
+  }
   const xff = req.headers['x-forwarded-for'];
   if (xff) {
-    const parts = String(xff).split(',');
-    return (parts[0] || '').trim() || 'unknown';
+    const parts = String(xff).split(',').map(s => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
   }
-  const realIP = req.headers['x-real-ip'];
-  if (realIP) return String(realIP).trim();
-  return (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || 'unknown';
+  if (req.headers['x-real-ip']) return String(req.headers['x-real-ip']).trim();
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
 }
 
 export const ipOf = getIP;
-export const fpOf = req => String(req.headers['x-fingerprint'] || '');
+
+// ─── FIX: fpOf verifikasi HMAC signature ───
+export function fpOf(req) {
+  const raw = String(req.headers['x-fingerprint'] || '');
+  const sig = String(req.headers['x-fp-sig'] || '');
+
+  if (!raw) return '';
+  if (!sig) return raw; // graceful fallback untuk client lama
+
+  try {
+    const expected = crypto
+      .createHmac('sha256', CONFIG.SESSION_SECRET)
+      .update(raw)
+      .digest('base64url');
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return '';
+  } catch {
+    return '';
+  }
+  return raw;
+}
+
+export function signFingerprint(raw) {
+  return crypto
+    .createHmac('sha256', CONFIG.SESSION_SECRET)
+    .update(String(raw))
+    .digest('base64url');
+}
 
 export const hashPassword = p => bcrypt.hash(String(p), CONFIG.SALT_ROUNDS);
 export const verifyPassword = async (p, h) => {
@@ -324,7 +362,7 @@ export async function setMaintenance(p, by) {
   const data = {
     maintenance: Boolean(p.maintenance),
     title: sanitize(p.title || '', 200),
-    message: sanitize(p.message || '', 1000),
+    message: sanitize(p.message || '', 2000),
     until: Number(p.until) || 0,
     updatedAt: Date.now(),
     updatedBy: sanitize(by || 'system', 100)
@@ -447,7 +485,7 @@ export async function markRegisterLimit(ip, fp, username) {
   }
 }
 
-export async function checkResetLimit(userId, ip, fp) {
+export async function checkResetLimit(userId) {
   const snap = await db.ref(`users/${userId}`).once('value');
   if (!snap.exists()) return { allowed: false, reason: 'User tidak ditemukan' };
   const row = snap.val();
