@@ -70,7 +70,6 @@ async function getFingerprint() {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ─── FP SIGNATURE HELPER ───
 async function getSignedFingerprint() {
   if (!fingerprint) fingerprint = await getFingerprint();
   if (fpSignature) return { fp: fingerprint, sig: fpSignature };
@@ -390,7 +389,7 @@ async function checkAuthWithServer(isStartup) {
 
     if (res.status === 401) {
       if (isStartup) {
-        await new Promise(function (r) { setTimeout(r, 800); });
+        await new Promise(function (r) { setTimeout(r, 500); });
         var res2 = await apiGet(API_USER + '?action=check-status');
         if (res2.status === 401) {
           redirectToLogin();
@@ -441,7 +440,7 @@ async function checkAuthWithServer(isStartup) {
     }
 
     if (isStartup) {
-      await new Promise(function (r) { setTimeout(r, 800); });
+      await new Promise(function (r) { setTimeout(r, 500); });
       return checkAuthWithServer(false);
     }
 
@@ -449,7 +448,7 @@ async function checkAuthWithServer(isStartup) {
     return null;
   } catch (e) {
     if (isStartup) {
-      await new Promise(function (r) { setTimeout(r, 800); });
+      await new Promise(function (r) { setTimeout(r, 500); });
       return checkAuthWithServer(false);
     }
     redirectToLogin();
