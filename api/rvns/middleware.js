@@ -1,3 +1,4 @@
+// rvns/middleware.js
 import { CONFIG } from './config.js';
 import { verifySession, verifyCSRF, generateCSRFToken } from './session.js';
 import { decryptAny } from './helper.js';
@@ -8,7 +9,7 @@ export function setSecurityHeaders(res) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 }
 
 export function setCorsHeaders(req, res) {
@@ -19,7 +20,7 @@ export function setCorsHeaders(req, res) {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Fingerprint, X-CSRF-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Fingerprint, X-FP-Sig, X-CSRF-Token');
 }
 
 function extractOriginFromReferer(referer) {
@@ -32,23 +33,29 @@ function extractOriginFromReferer(referer) {
 
 export function enforceOrigin(req, res) {
   if (!CONFIG.ALLOWED_ORIGINS.length) return true;
+
   const origin = req.headers.origin || '';
   const referer = req.headers.referer || req.headers.referrer || '';
-  const secFetchSite = req.headers['sec-fetch-site'] || '';
-  if (origin) {
-    if (CONFIG.ALLOWED_ORIGINS.includes(origin)) return true;
-    res.status(403).json({ success: false, error: 'origin_denied', message: 'Origin tidak diizinkan' });
-    return false;
+  const isStateChanging = ['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method);
+
+  if (isStateChanging) {
+    if (!origin && !referer) {
+      res.status(403).json({ success: false, error: 'origin_required', message: 'Request tanpa Origin tidak diizinkan' });
+      return false;
+    }
+    if (origin && !CONFIG.ALLOWED_ORIGINS.includes(origin)) {
+      res.status(403).json({ success: false, error: 'origin_denied', message: 'Origin tidak diizinkan' });
+      return false;
+    }
+    if (!origin && referer) {
+      const refOrigin = extractOriginFromReferer(referer);
+      if (!refOrigin || !CONFIG.ALLOWED_ORIGINS.includes(refOrigin)) {
+        res.status(403).json({ success: false, error: 'referer_denied', message: 'Referer tidak diizinkan' });
+        return false;
+      }
+    }
   }
-  if (referer) {
-    const refOrigin = extractOriginFromReferer(referer);
-    if (refOrigin && CONFIG.ALLOWED_ORIGINS.includes(refOrigin)) return true;
-    res.status(403).json({ success: false, error: 'referer_denied', message: 'Referer tidak diizinkan' });
-    return false;
-  }
-  if (secFetchSite === 'same-origin' || secFetchSite === 'same-site' || secFetchSite === 'none') return true;
-  res.status(403).json({ success: false, error: 'origin_required', message: 'Request tanpa Origin tidak diizinkan' });
-  return false;
+  return true;
 }
 
 export function methodGuard(req, res, allowed = ['GET', 'POST']) {
