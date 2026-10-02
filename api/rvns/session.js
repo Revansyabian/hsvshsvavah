@@ -111,45 +111,14 @@ export function setSessionCookie(res, sessionToken, csrfToken, user) {
                  process.env.VERCEL === '1' ||
                  !!process.env.VERCEL_ENV;
 
-  if (typeof res.cookie === 'function') {
-    try {
-      res.cookie(COOKIE_SESSION, sessionToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: maxAge * 1000
-      });
-      res.cookie(COOKIE_CSRF, csrfToken, {
-        httpOnly: false,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: maxAge * 1000
-      });
-      return;
-    } catch (e) {
-      // fallback ke manual
-    }
-  }
-
   const secureFlag = isProd ? '; Secure' : '';
   const baseAttrs = `Path=/; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
+
   appendSetCookie(res, `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; HttpOnly; ${baseAttrs}`);
   appendSetCookie(res, `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; ${baseAttrs}`);
 }
 
 export function clearSessionCookie(res) {
-  if (typeof res.clearCookie === 'function') {
-    try {
-      res.clearCookie(COOKIE_SESSION, { path: '/' });
-      res.clearCookie(COOKIE_CSRF, { path: '/' });
-      return;
-    } catch (e) {
-      // fallback
-    }
-  }
-
   const past = 'Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
   appendSetCookie(res, `${COOKIE_SESSION}=; HttpOnly; ${past}`);
   appendSetCookie(res, `${COOKIE_CSRF}=; ${past}`);
