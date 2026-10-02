@@ -4,7 +4,7 @@ import { CONFIG } from './config.js';
 
 const COOKIE_SESSION = 'rvs_session';
 const COOKIE_CSRF = 'csrf_token';
-const SESSION_KEY = crypto.createHash('sha256').update(CONFIG.SESSION_SECRET).digest();
+const SESSION_KEY = crypto.createHash('sha256').update(CONFIG.SESSION_SECRET || 'fallback').digest();
 
 function parseCookies(req) {
   const out = {};
@@ -40,7 +40,7 @@ export function createSessionToken(user) {
   const tag = cipher.getAuthTag();
 
   const token = `v2.${iv.toString('base64url')}.${tag.toString('base64url')}.${ct.toString('base64url')}`;
-  const sig = crypto.createHmac('sha256', CONFIG.SESSION_SECRET).update(token).digest('base64url');
+  const sig = crypto.createHmac('sha256', CONFIG.SESSION_SECRET || 'fallback').update(token).digest('base64url');
   return `${token}.${sig}`;
 }
 
@@ -60,7 +60,7 @@ export function verifySession(req) {
   const token = parts.slice(0, 4).join('.');
   const sig = parts[4];
 
-  const expected = crypto.createHmac('sha256', CONFIG.SESSION_SECRET).update(token).digest('base64url');
+  const expected = crypto.createHmac('sha256', CONFIG.SESSION_SECRET || 'fallback').update(token).digest('base64url');
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
@@ -80,7 +80,7 @@ export function verifySession(req) {
 }
 
 export function generateCSRFToken(session) {
-  return crypto.createHmac('sha256', CONFIG.SESSION_SECRET)
+  return crypto.createHmac('sha256', CONFIG.SESSION_SECRET || 'fallback')
     .update(`csrf:${session.uid}:${session.iat || session.exp}`)
     .digest('base64url');
 }
