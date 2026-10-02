@@ -150,27 +150,36 @@ async function handleGetTransactions(req, res, auth) {
 
 async function handleSaveTransaction(req, res, auth, ip, fp) {
   const data = req.body || {};
-  const id = db.ref('transactions').push().key;
-  await db.ref(`transactions/${id}`).set({
-    owner: auth.session.username,
+
+  // ─── FIX: whitelist field, jangan encrypt raw ───
+  const sanitizedData = {
     type: sanitize(data.type, 20),
     accountName: sanitize(data.accountName, 100),
     amount: Number(data.amount) || 0,
+    oldBalance: Number(data.oldBalance) || 0,
+    newBalance: Number(data.newBalance) || 0,
+    oldName: sanitize(data.oldName, 100),
+    newName: sanitize(data.newName, 100),
+    deviceId: sanitize(data.deviceId, 200),
+    status: sanitize(data.status, 20),
+    operator: auth.session.username
+  };
+
+  const id = db.ref('transactions').push().key;
+  await db.ref(`transactions/${id}`).set({
+    owner: auth.session.username,
+    type: sanitizedData.type,
+    accountName: sanitizedData.accountName,
+    amount: sanitizedData.amount,
     operator: auth.session.username,
     createdAt: Date.now(),
-    data: encryptAtRest(data)
+    data: encryptAtRest(sanitizedData)
   });
-  await logActivity(auth.session.username, 'transaction', `${data.type} ${data.amount}`, ip, fp);
-  await trackUserIPFP(auth.user.id, ip, fp);
-  return res.status(200).json({ success: true, id });
-}
 
-async function handleDeleteTransactions(req, res, auth) {
-  const snap = await db.ref('transactions').orderByChild('owner').equalTo(auth.session.username).once('value');
-  const updates = {};
-  for (const k of Object.keys(snap.val() || {})) updates[k] = null;
-  if (Object.keys(updates).length) await db.ref('transactions').update(updates);
-  return res.status(200).json({ success: true });
+  await logActivity(auth.session.username, 'transaction', `${sanitizedData.type} ${sanitizedData.amount}`, ip, fp);
+  await trackUserIPFP(auth.user.id, ip, fp);
+
+  return res.status(200).json({ success: true, id });
 }
 
 export default async function handler(req, res) {
