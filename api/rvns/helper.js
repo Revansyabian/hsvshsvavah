@@ -9,7 +9,7 @@ const keyFromSecret = s => crypto.createHash('sha256').update(String(s)).digest(
 
 export function encryptAtRest(value) {
   const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv('aes-256-gcm', keyFromSecret(CONFIG.ADMIN_KEY), iv);
+  const c = crypto.createCipheriv('aes-256-gcm', keyFromSecret(CONFIG.ADMIN_KEY || 'fallback'), iv);
   const ct = Buffer.concat([c.update(JSON.stringify(value ?? null), 'utf8'), c.final()]);
   return 'v2.' + Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64url');
 }
@@ -18,7 +18,7 @@ export function decryptAtRest(raw) {
   if (typeof raw !== 'string' || !raw.startsWith('v2.')) return null;
   try {
     const b = Buffer.from(raw.slice(3), 'base64url');
-    const d = crypto.createDecipheriv('aes-256-gcm', keyFromSecret(CONFIG.ADMIN_KEY), b.subarray(0, 12));
+    const d = crypto.createDecipheriv('aes-256-gcm', keyFromSecret(CONFIG.ADMIN_KEY || 'fallback'), b.subarray(0, 12));
     d.setAuthTag(b.subarray(12, 28));
     return JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8'));
   } catch { return null; }
@@ -27,7 +27,7 @@ export function decryptAtRest(raw) {
 export function decryptAtRestLegacy(raw) {
   if (typeof raw !== 'string' || !raw.startsWith('U2F')) return null;
   try {
-    const dec = CryptoJS.AES.decrypt(raw, CONFIG.ADMIN_KEY).toString(CryptoJS.enc.Utf8);
+    const dec = CryptoJS.AES.decrypt(raw, CONFIG.ADMIN_KEY || 'fallback').toString(CryptoJS.enc.Utf8);
     if (!dec) return null;
     return JSON.parse(dec);
   } catch { return null; }
@@ -48,7 +48,6 @@ export function escapeHtml(s) {
   }[c]));
 }
 
-// ─── FIX: getIP trust Express req.ip ───
 export function getIP(req) {
   if (req.ip && req.ip !== '::1' && req.ip !== '127.0.0.1') {
     return String(req.ip).replace(/^::ffff:/, '');
@@ -64,19 +63,22 @@ export function getIP(req) {
 
 export const ipOf = getIP;
 
-// ─── FIX: fpOf verifikasi HMAC signature ───
+export function signFingerprint(raw) {
+  return crypto
+    .createHmac('sha256', CONFIG.SESSION_SECRET || 'fallback')
+    .update(String(raw))
+    .digest('base64url');
+}
+
 export function fpOf(req) {
   const raw = String(req.headers['x-fingerprint'] || '');
   const sig = String(req.headers['x-fp-sig'] || '');
 
   if (!raw) return '';
-  if (!sig) return raw; // graceful fallback untuk client lama
+  if (!sig) return raw;
 
   try {
-    const expected = crypto
-      .createHmac('sha256', CONFIG.SESSION_SECRET)
-      .update(raw)
-      .digest('base64url');
+    const expected = signFingerprint(raw);
     const a = Buffer.from(sig);
     const b = Buffer.from(expected);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return '';
@@ -84,13 +86,6 @@ export function fpOf(req) {
     return '';
   }
   return raw;
-}
-
-export function signFingerprint(raw) {
-  return crypto
-    .createHmac('sha256', CONFIG.SESSION_SECRET)
-    .update(String(raw))
-    .digest('base64url');
 }
 
 export const hashPassword = p => bcrypt.hash(String(p), CONFIG.SALT_ROUNDS);
