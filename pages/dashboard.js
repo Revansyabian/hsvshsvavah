@@ -362,6 +362,8 @@ async function forceLogout() {
     await apiPost(API_AUTH + '?action=logout', {});
   } catch (e) {}
   storageRemove('sesi_pengguna');
+  storageRemove('admin_current');
+  storageRemove('session_start');
   if (statusCheckInterval) clearInterval(statusCheckInterval);
   window.location.href = '/';
 }
@@ -527,10 +529,16 @@ function showMaintenancePage(data) {
 }
 
 async function callRvnstore(endpoint, method, body, authToken) {
+  const { fp, sig } = await getSignedFingerprint();
+  const headers = { 'Content-Type': 'application/json', 'X-Fingerprint': fp };
+  if (sig) headers['X-FP-Sig'] = sig;
+  const csrf = getCookie('csrf_token');
+  if (csrf) headers['X-CSRF-Token'] = csrf;
+
   var res = await fetch(API_RVNSTORE, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       endpoint: endpoint,
       method: method || 'POST',
@@ -559,11 +567,14 @@ async function loginWithDeviceId(deviceId) {
           GetPlayerProfile: true
         }
       }, null);
+
       if (data.data && data.data.SessionTicket) {
         currentAuthToken = data.data.SessionTicket;
+      } else if (data.SessionTicket) {
+        currentAuthToken = data.SessionTicket;
       } else {
         hideLoading();
-        throw new Error('Device ID tidak valid!');
+        throw new Error(data.errorMessage || data.error || 'Device ID tidak valid!');
       }
     }
     var info = await getUserInfoFromPlayFab();
@@ -580,7 +591,7 @@ async function loginWithDeviceId(deviceId) {
       return true;
     }
     hideLoading();
-    throw new Error('Gagal!');
+    throw new Error('Gagal ambil info akun');
   } catch (error) {
     hideLoading();
     showAlert(error.message, 'error');
@@ -598,11 +609,13 @@ async function getUserInfoFromPlayFab() {
         GetPlayerProfile: true
       }
     }, currentAuthToken);
-    if (result.data) {
-      var info = result.data.InfoResultPayload;
+
+    var payload = result.data || result;
+    var info = payload.InfoResultPayload || payload;
+    if (info && info.AccountInfo) {
       var acc = info.AccountInfo;
       var name = (acc && acc.TitleInfo) ? (acc.TitleInfo.DisplayName || 'Unknown') : 'Unknown';
-      var balance = info.UserVirtualCurrency ? info.UserVirtualCurrency.RP : 0;
+      var balance = info.UserVirtualCurrency ? (info.UserVirtualCurrency.RP || 0) : 0;
       var pfid = acc ? (acc.PlayFabId || '-') : '-';
       var fb = { id: null, name: 'Tidak tertaut', email: null, isConnected: false };
       var fbAvatar = null;
@@ -777,7 +790,8 @@ async function addCashToAccount(amt) {
       RevisionSelection: "Live",
       GeneratePlayStreamEvent: true
     }, currentAuthToken);
-    if (res.data) {
+
+    if (res && !res.error) {
       await new Promise(function (r) { setTimeout(r, 2000); });
       var info = await getUserInfoFromPlayFab();
       if (info) {
@@ -1140,7 +1154,7 @@ async function executeChangeName(newName) {
     var res = await callRvnstore('/Client/UpdateUserTitleDisplayName', 'POST', {
       DisplayName: newName
     }, currentAuthToken);
-    if (res.data && res.data.DisplayName) {
+    if (res && (res.data || res.DisplayName)) {
       var old = currentAccount.name;
       currentAccount.name = newName;
       document.getElementById('accountName').textContent = newName;
