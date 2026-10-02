@@ -94,6 +94,17 @@ export function verifyCSRF(req, session) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+function appendSetCookie(res, cookieStr) {
+  const existing = res.getHeader('Set-Cookie');
+  if (!existing) {
+    res.setHeader('Set-Cookie', cookieStr);
+  } else if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, cookieStr]);
+  } else {
+    res.setHeader('Set-Cookie', [existing, cookieStr]);
+  }
+}
+
 export function setSessionCookie(res, sessionToken, csrfToken, user) {
   const maxAge = user ? getSessionMaxAge(user) : CONFIG.SESSION_ADMIN_MAX_AGE;
   const isProd = process.env.NODE_ENV === 'production' ||
@@ -101,35 +112,45 @@ export function setSessionCookie(res, sessionToken, csrfToken, user) {
                  !!process.env.VERCEL_ENV;
 
   if (typeof res.cookie === 'function') {
-    res.cookie(COOKIE_SESSION, sessionToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: maxAge * 1000
-    });
-    res.cookie(COOKIE_CSRF, csrfToken, {
-      httpOnly: false,
-      secure: isProd,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: maxAge * 1000
-    });
-  } else {
-    const secureFlag = isProd ? '; Secure' : '';
-    const baseAttrs = `Path=/; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
-    res.append('Set-Cookie', `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; HttpOnly; ${baseAttrs}`);
-    res.append('Set-Cookie', `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; ${baseAttrs}`);
+    try {
+      res.cookie(COOKIE_SESSION, sessionToken, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: maxAge * 1000
+      });
+      res.cookie(COOKIE_CSRF, csrfToken, {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: maxAge * 1000
+      });
+      return;
+    } catch (e) {
+      // fallback ke manual
+    }
   }
+
+  const secureFlag = isProd ? '; Secure' : '';
+  const baseAttrs = `Path=/; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
+  appendSetCookie(res, `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; HttpOnly; ${baseAttrs}`);
+  appendSetCookie(res, `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; ${baseAttrs}`);
 }
 
 export function clearSessionCookie(res) {
   if (typeof res.clearCookie === 'function') {
-    res.clearCookie(COOKIE_SESSION, { path: '/' });
-    res.clearCookie(COOKIE_CSRF, { path: '/' });
-  } else {
-    const past = 'Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    res.append('Set-Cookie', `${COOKIE_SESSION}=; HttpOnly; ${past}`);
-    res.append('Set-Cookie', `${COOKIE_CSRF}=; ${past}`);
+    try {
+      res.clearCookie(COOKIE_SESSION, { path: '/' });
+      res.clearCookie(COOKIE_CSRF, { path: '/' });
+      return;
+    } catch (e) {
+      // fallback
+    }
   }
+
+  const past = 'Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  appendSetCookie(res, `${COOKIE_SESSION}=; HttpOnly; ${past}`);
+  appendSetCookie(res, `${COOKIE_CSRF}=; ${past}`);
 }
