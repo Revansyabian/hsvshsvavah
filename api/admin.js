@@ -1,3 +1,4 @@
+// api/admin.js
 import { db } from './rvns/db.js';
 import {
   hashPassword,
@@ -62,7 +63,6 @@ function timingSafeEqualStr(a, b) {
 async function handleLogin(req, res, ip, fp) {
   const { accessKey, username, password, captchaToken } = req.body || {};
 
-  // ─── FIX: guard process.env.ADMIN_KEY ───
   if (!process.env.ADMIN_KEY) {
     console.error('[admin] ADMIN_KEY tidak di-set');
     return res.status(500).json({ success: false, message: 'Server misconfigured' });
@@ -84,7 +84,6 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(403).json({ success: false, error: 'fp_blocked', message: 'Perangkat Anda diblokir' });
   }
 
-  // ─── FIX: rate limit by IP saja (bukan IP+FP) ───
   const attemptKey = `ip_${String(ip).replace(/\./g, '_')}`;
   const attemptRef = db.ref(`admin_login_attempts/${attemptKey}`);
   const attemptSnap = await attemptRef.once('value');
@@ -143,7 +142,6 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(403).json({ success: false, error: 'ip_locked', message: 'Login cuma bisa dari jaringan yang terdaftar.' });
   }
 
-  // ─── FIX: handle FP kosong dengan benar ───
   if (lockedFP && currentFP) {
     const fpSame = lockedFP === currentFP;
     const ipSame = lockedIP && lockedIP === currentIP;
@@ -163,7 +161,6 @@ async function handleLogin(req, res, ip, fp) {
       });
     }
   } else if (lockedFP && !currentFP) {
-    // FP header hilang — jangan migrate, jangan block kalau IP sama
     if (lockedIP && lockedIP !== currentIP) {
       await logActivity(found.username, 'admin_fp_missing',
         'FP hilang + IP beda', ip, fp);
@@ -219,7 +216,8 @@ async function handleLogin(req, res, ip, fp) {
   });
 
   const sessionToken = createSessionToken({ id: foundId, username: found.username, role: 'admin' });
-  const csrfToken = generateCSRFToken({ uid: foundId, username: found.username, role: 'admin', iat: Date.now() });
+  const csrfSession = { uid: foundId, username: found.username, role: 'admin', iat: Date.now() };
+  const csrfToken = generateCSRFToken(csrfSession);
   setSessionCookie(res, sessionToken, csrfToken, { role: 'admin' });
   await logActivity(found.username, 'admin_login_success', 'Login admin berhasil', ip, fp);
 
@@ -231,6 +229,7 @@ async function handleLogin(req, res, ip, fp) {
     sessionMaxAge: 3 * 24 * 60 * 60
   });
 }
+
 async function handleLogout(req, res, ip, fp) {
   const s = verifySession(req);
   if (s) await logActivity(s.username, 'admin_logout', 'Logout admin', ip, fp);
@@ -239,7 +238,7 @@ async function handleLogout(req, res, ip, fp) {
 }
 
 async function handleMe(req, res, session) {
-  return res.status(200).json({ success: true, admin: { username: session.username, role: session.role } });
+  return res.status(200).json({ success: true, admin: { username: session.username, role: session.role }, csrfToken: generateCSRFToken(session) });
 }
 
 async function handleAuthInfo(req, res, session) {
@@ -621,6 +620,25 @@ export default async function handler(req, res) {
     if (action === 'clear-logs') {
       await db.ref('activity_logs').remove();
       return res.status(200).json({ success: true, message: 'Log dihapus' });
+    }
+    if (action === 'clear-suspicious') {
+      await db.ref('suspicious_logs').remove();
+      return res.status(200).json({ success: true, message: 'Log dihapus' });
+    }
+
+    if (action === 'user-activity') {
+      const limit = Math.min(Math.max(Number(req.body?.limit || 200), 1), 500);
+      const logs = await readLogs(limit);
+      return res.status(200).json({ success: true, logs });
+    }
+
+    if (action === 'user-registrations') {
+      const snap = await db.ref('users').once('value');
+      const registrations = Object.entries(snap.val() || {})
+        .map(([id, row]) => toPublicUser(id, row))
+        .filter(u => u.registered === true)
+        .sort((a, b) => b.createdAt - a.createdAt);
+      return res.status(200).json({ success: true, registrations });
     }
 
     return res.status(404).json({ success: false, message: `Action tidak dikenal: ${action}` });
