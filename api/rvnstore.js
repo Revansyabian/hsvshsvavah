@@ -1,3 +1,4 @@
+// api/rvnstore.js
 const TARGET = process.env.PLAYFAB_API_URL;
 if (!TARGET) throw new Error('PLAYFAB_API_URL is not configured');
 
@@ -21,7 +22,7 @@ function allowedRate(ip) {
 
 function sameOrigin(req) {
   const origin = req.headers.origin;
-  if (!origin) return true;
+  if (!origin) return false; // ─── FIX: state-changing butuh origin ───
   const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
   return allowed.includes(origin);
 }
@@ -31,8 +32,10 @@ export default async function handler(req, res) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Cache-Control', 'no-store');
-  if (!sameOrigin(req)) return res.status(403).json({ error: 'Origin tidak diizinkan' });
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (!sameOrigin(req)) return res.status(403).json({ error: 'Origin tidak diizinkan' });
 
   const origin = req.headers.origin;
   const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
