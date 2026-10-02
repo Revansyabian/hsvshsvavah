@@ -62,7 +62,12 @@ function timingSafeEqualStr(a, b) {
 async function handleLogin(req, res, ip, fp) {
   const { accessKey, username, password, captchaToken } = req.body || {};
 
-  if (!accessKey || !timingSafeEqualStr(accessKey, process.env.ADMIN_KEY || '')) {
+  // ─── FIX: guard process.env.ADMIN_KEY ───
+  if (!process.env.ADMIN_KEY) {
+    console.error('[admin] ADMIN_KEY tidak di-set');
+    return res.status(500).json({ success: false, message: 'Server misconfigured' });
+  }
+  if (!accessKey || !timingSafeEqualStr(accessKey, process.env.ADMIN_KEY)) {
     await logActivity(username || 'unknown', 'admin_login_bad_key', 'Kode akses salah', ip, fp);
     return res.status(403).json({ success: false, error: 'bad_key', message: 'Kode akses salah' });
   }
@@ -79,7 +84,8 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(403).json({ success: false, error: 'fp_blocked', message: 'Perangkat Anda diblokir' });
   }
 
-  const attemptKey = `${String(ip).replace(/\./g, '_')}_${String(fp || 'nofp').replace(/[.#$\[\]\/]/g, '_')}`;
+  // ─── FIX: rate limit by IP saja (bukan IP+FP) ───
+  const attemptKey = `ip_${String(ip).replace(/\./g, '_')}`;
   const attemptRef = db.ref(`admin_login_attempts/${attemptKey}`);
   const attemptSnap = await attemptRef.once('value');
   const attemptData = attemptSnap.val() || {};
@@ -128,7 +134,6 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(401).json({ success: false, message: `Username atau password salah. Sisa ${3 - wrongCount} percobaan.` });
   }
 
-  // ── FP/IP Check dengan GRACE PERIOD ──
   const lockedIP = found.lockedIP || '';
   const lockedFP = found.lockedFP || '';
   const currentFP = fp || '';
@@ -138,25 +143,34 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(403).json({ success: false, error: 'ip_locked', message: 'Login cuma bisa dari jaringan yang terdaftar.' });
   }
 
+  // ─── FIX: handle FP kosong dengan benar ───
   if (lockedFP && currentFP) {
     const fpSame = lockedFP === currentFP;
     const ipSame = lockedIP && lockedIP === currentIP;
 
     if (fpSame) {
-      // OK, FP match
+      // OK
     } else if (ipSame) {
-      // FP beda tapi IP sama → migrate (browser update, dsb)
       await logActivity(found.username, 'admin_fp_rotated',
         `FP berubah, IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${currentFP.slice(0, 16)}...`, ip, fp);
-      // Akan di-update di bawah
     } else {
-      // FP beda & IP beda → block
       await logActivity(found.username, 'admin_fp_locked',
         `FP & IP beda. Prev FP: ${lockedFP.slice(0, 16)}..., New FP: ${currentFP.slice(0, 16)}..., Prev IP: ${lockedIP}, New IP: ${currentIP}`, ip, fp);
       return res.status(403).json({
         success: false,
         error: 'fp_locked',
         message: 'Login cuma bisa dari perangkat yang terdaftar.'
+      });
+    }
+  } else if (lockedFP && !currentFP) {
+    // FP header hilang — jangan migrate, jangan block kalau IP sama
+    if (lockedIP && lockedIP !== currentIP) {
+      await logActivity(found.username, 'admin_fp_missing',
+        'FP hilang + IP beda', ip, fp);
+      return res.status(403).json({
+        success: false,
+        error: 'fp_missing',
+        message: 'Fingerprint tidak terdeteksi.'
       });
     }
   }
@@ -205,7 +219,7 @@ async function handleLogin(req, res, ip, fp) {
   });
 
   const sessionToken = createSessionToken({ id: foundId, username: found.username, role: 'admin' });
-  const csrfToken = generateCSRFToken({ uid: foundId });
+  const csrfToken = generateCSRFToken({ uid: foundId, username: found.username, role: 'admin', iat: Date.now() });
   setSessionCookie(res, sessionToken, csrfToken, { role: 'admin' });
   await logActivity(found.username, 'admin_login_success', 'Login admin berhasil', ip, fp);
 
@@ -217,7 +231,6 @@ async function handleLogin(req, res, ip, fp) {
     sessionMaxAge: 3 * 24 * 60 * 60
   });
 }
-
 async function handleLogout(req, res, ip, fp) {
   const s = verifySession(req);
   if (s) await logActivity(s.username, 'admin_logout', 'Logout admin', ip, fp);
