@@ -18,13 +18,23 @@ import {
   setSecurityHeaders, setCorsHeaders, enforceOrigin, methodGuard, bodyGuard
 } from './rvns/middleware.js';
 
+function _signFingerprint(raw) {
+  if (typeof signFingerprint === 'function') return signFingerprint(raw);
+  return crypto.createHmac('sha256', CONFIG.SESSION_SECRET).update(String(raw)).digest('base64url');
+}
+
 async function handleSignFingerprint(req, res) {
-  const { fp } = req.body || {};
-  if (!fp || typeof fp !== 'string' || fp.length < 16 || fp.length > 200) {
-    return res.status(400).json({ success: false, message: 'FP tidak valid' });
+  try {
+    const { fp } = req.body || {};
+    if (!fp || typeof fp !== 'string' || fp.length < 16 || fp.length > 200) {
+      return res.status(400).json({ success: false, message: 'FP tidak valid' });
+    }
+    const sig = _signFingerprint(fp);
+    return res.status(200).json({ success: true, fp, sig });
+  } catch (e) {
+    console.error('[sign-fp]', e?.message || e);
+    return res.status(500).json({ success: false, message: 'Internal error' });
   }
-  const sig = signFingerprint(fp);
-  return res.status(200).json({ success: true, fp, sig });
 }
 
 async function handleLogin(req, res, ip, fp) {
@@ -32,18 +42,28 @@ async function handleLogin(req, res, ip, fp) {
   if (!username || !password) {
     return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
   }
-  if (!(await verifyRecaptchaV2(captchaToken))) {
-    await logActivity(username, 'login_captcha_fail', 'reCAPTCHA gagal', ip, fp);
-    return res.status(200).json({ success: false, error: 'captcha_failed', message: 'Verifikasi reCAPTCHA gagal' });
+
+  if (CONFIG.RECAPTCHA_V2_SECRET) {
+    let captchaOk = false;
+    try {
+      captchaOk = await verifyRecaptchaV2(captchaToken);
+    } catch (e) {
+      captchaOk = false;
+    }
+    if (!captchaOk) {
+      await logActivity(username, 'login_captcha_fail', 'reCAPTCHA gagal', ip, fp).catch(() => {});
+      return res.status(200).json({ success: false, error: 'captcha_failed', message: 'Verifikasi reCAPTCHA gagal' });
+    }
   }
-  if (await isIPBlocked(ip) || (fp && await isFPBlocked(fp))) {
-    await logActivity(username, 'login_blocked', 'IP/FP diblokir', ip, fp);
+
+  if (await isIPBlocked(ip).catch(() => false) || (fp && await isFPBlocked(fp).catch(() => false))) {
+    await logActivity(username, 'login_blocked', 'IP/FP diblokir', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, error: 'blocked', message: 'IP atau perangkat diblokir' });
   }
 
   const found = await findUserByUsername(username);
   if (!found) {
-    await logActivity(username, 'login_failed', 'User tidak ditemukan', ip, fp);
+    await logActivity(username, 'login_failed', 'User tidak ditemukan', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
   if (found.row.status === 'pending') {
@@ -53,7 +73,7 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(200).json({ success: false, error: 'rejected', message: 'Akun ditolak admin' });
   }
   if (found.row.banned) {
-    await logActivity(username, 'login_banned', 'Akun dibanned', ip, fp);
+    await logActivity(username, 'login_banned', 'Akun dibanned', ip, fp).catch(() => {});
     return res.status(200).json({
       success: false, banned: true,
       bannedUntil: found.data.bannedUntil || 0,
@@ -61,7 +81,7 @@ async function handleLogin(req, res, ip, fp) {
     });
   }
   if (found.row.accessBanned) {
-    await logActivity(username, 'login_ban_akses', 'Ban akses aktif', ip, fp);
+    await logActivity(username, 'login_ban_akses', 'Ban akses aktif', ip, fp).catch(() => {});
     return res.status(200).json({
       success: false, banAkses: true,
       banAksesUntil: found.data.banAksesUntil || 0,
@@ -69,13 +89,13 @@ async function handleLogin(req, res, ip, fp) {
     });
   }
   if (found.row.forceLogout) {
-    await logActivity(username, 'login_force_logout', 'Force logout aktif', ip, fp);
+    await logActivity(username, 'login_force_logout', 'Force logout aktif', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, forceLogout: true, message: 'Akun ditangguhkan' });
   }
 
   const ok = await verifyPassword(password, found.data.password_hash);
   if (!ok) {
-    await logActivity(username, 'login_failed', 'Password salah', ip, fp);
+    await logActivity(username, 'login_failed', 'Password salah', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
 
@@ -137,7 +157,7 @@ async function handleLogin(req, res, ip, fp) {
 
   setSessionCookie(res, sessionToken, csrfToken, { role: found.row.role });
 
-  await logActivity(username, 'login_success', 'Login berhasil', ip, fp);
+  await logActivity(username, 'login_success', 'Login berhasil', ip, fp).catch(() => {});
 
   return res.status(200).json({
     success: true,
@@ -163,10 +183,15 @@ async function handleRegister(req, res, ip, fp) {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(200).json({ success: false, message: 'Email tidak valid' });
   if (!paket) return res.status(200).json({ success: false, message: 'Paket belum dipilih' });
 
-  if (!(await verifyRecaptchaV2(captchaToken))) {
-    return res.status(200).json({ success: false, error: 'captcha_failed', message: 'reCAPTCHA tidak valid' });
+  if (CONFIG.RECAPTCHA_V2_SECRET) {
+    let captchaOk = false;
+    try { captchaOk = await verifyRecaptchaV2(captchaToken); } catch (e) { captchaOk = false; }
+    if (!captchaOk) {
+      return res.status(200).json({ success: false, error: 'captcha_failed', message: 'reCAPTCHA tidak valid' });
+    }
   }
-  if (await isIPBlocked(ip) || (fp && await isFPBlocked(fp))) {
+
+  if (await isIPBlocked(ip).catch(() => false) || (fp && await isFPBlocked(fp).catch(() => false))) {
     return res.status(200).json({ success: false, error: 'blocked', message: 'Akses ditolak' });
   }
   if (await findUserByUsername(vu.username)) {
@@ -206,13 +231,13 @@ async function handleRegister(req, res, ip, fp) {
   });
 
   await markRegisterLimit(ip, fp, vu.username);
-  await logActivity(vu.username, 'register', `Pendaftaran paket ${paket}`, ip, fp);
+  await logActivity(vu.username, 'register', `Pendaftaran paket ${paket}`, ip, fp).catch(() => {});
   return res.status(200).json({ success: true, message: 'Pendaftaran berhasil, tunggu aktivasi admin' });
 }
 
 async function handleLogout(req, res, ip, fp) {
   const session = verifySession(req);
-  if (session) await logActivity(session.username, 'logout', 'Logout', ip, fp);
+  if (session) await logActivity(session.username, 'logout', 'Logout', ip, fp).catch(() => {});
   clearSessionCookie(res);
   return res.status(200).json({ success: true });
 }
@@ -222,8 +247,13 @@ async function handleRequestReset(req, res, ip, fp) {
   if (!username || username.length < 3) {
     return res.status(200).json({ success: false, message: 'Username minimal 3 karakter' });
   }
-  if (!(await verifyRecaptchaV2(captchaToken))) {
-    return res.status(200).json({ success: false, error: 'captcha_failed', message: 'reCAPTCHA tidak valid' });
+
+  if (CONFIG.RECAPTCHA_V2_SECRET) {
+    let captchaOk = false;
+    try { captchaOk = await verifyRecaptchaV2(captchaToken); } catch (e) { captchaOk = false; }
+    if (!captchaOk) {
+      return res.status(200).json({ success: false, error: 'captcha_failed', message: 'reCAPTCHA tidak valid' });
+    }
   }
 
   const found = await findUserByUsername(username);
@@ -280,7 +310,7 @@ async function handleRequestReset(req, res, ip, fp) {
     } catch (e) { console.error('email error:', e?.message); }
   }
 
-  await logActivity(username, 'request_reset', 'Link reset dikirim', ip, fp);
+  await logActivity(username, 'request_reset', 'Link reset dikirim', ip, fp).catch(() => {});
   const parts = found.data.email.split('@');
   const masked = parts[0].slice(0, 1) + '***@' + parts[1];
   return res.status(200).json({ success: true, maskedEmail: masked, message: 'Link reset dikirim' });
@@ -313,8 +343,13 @@ async function handleConfirmReset(req, res, ip, fp) {
   if (!token || !newPassword || newPassword.length < 6) {
     return res.status(200).json({ success: false, message: 'Data tidak valid' });
   }
-  if (!(await verifyRecaptchaV2(captchaToken))) {
-    return res.status(200).json({ success: false, message: 'reCAPTCHA tidak valid' });
+
+  if (CONFIG.RECAPTCHA_V2_SECRET) {
+    let captchaOk = false;
+    try { captchaOk = await verifyRecaptchaV2(captchaToken); } catch (e) { captchaOk = false; }
+    if (!captchaOk) {
+      return res.status(200).json({ success: false, message: 'reCAPTCHA tidak valid' });
+    }
   }
 
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -352,33 +387,35 @@ async function handleConfirmReset(req, res, ip, fp) {
   });
 
   await db.ref(`reset_tokens/${tokenHash}`).remove();
-  await logActivity(row.username, 'reset_password', 'Password direset', ip, fp);
+  await logActivity(row.username, 'reset_password', 'Password direset', ip, fp).catch(() => {});
 
   return res.status(200).json({ success: true, message: 'Password berhasil diubah' });
 }
 
 export default async function handler(req, res) {
-  setSecurityHeaders(res);
-  setCorsHeaders(req, res);
-  if (!methodGuard(req, res, ['GET', 'POST'])) return;
-  if (!enforceOrigin(req, res)) return;
-  if (!bodyGuard(req, res)) return;
-
-  const action = String(req.query.action || '').toLowerCase();
-  const ip = getIP(req);
-  const fp = fpOf(req);
-
   try {
-    if (action === 'sign-fp') return handleSignFingerprint(req, res);
-    if (action === 'login') return handleLogin(req, res, ip, fp);
-    if (action === 'register') return handleRegister(req, res, ip, fp);
-    if (action === 'logout') return handleLogout(req, res, ip, fp);
-    if (action === 'request-reset') return handleRequestReset(req, res, ip, fp);
-    if (action === 'verify-token') return handleVerifyToken(req, res);
-    if (action === 'confirm-reset') return handleConfirmReset(req, res, ip, fp);
+    setSecurityHeaders(res);
+    setCorsHeaders(req, res);
+    if (!methodGuard(req, res, ['GET', 'POST'])) return;
+    if (!enforceOrigin(req, res)) return;
+    if (!bodyGuard(req, res)) return;
+
+    const action = String(req.query.action || '').toLowerCase();
+    const ip = getIP(req);
+    const fp = fpOf(req);
+
+    if (action === 'sign-fp') return await handleSignFingerprint(req, res);
+    if (action === 'login') return await handleLogin(req, res, ip, fp);
+    if (action === 'register') return await handleRegister(req, res, ip, fp);
+    if (action === 'logout') return await handleLogout(req, res, ip, fp);
+    if (action === 'request-reset') return await handleRequestReset(req, res, ip, fp);
+    if (action === 'verify-token') return await handleVerifyToken(req, res);
+    if (action === 'confirm-reset') return await handleConfirmReset(req, res, ip, fp);
     return res.status(404).json({ success: false, message: `Action tidak dikenal: ${action}` });
   } catch (e) {
-    console.error('[auth]', e?.message || e);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('[auth] FATAL:', e?.stack || e?.message || e);
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: 'Internal server error', error: e?.message });
+    }
   }
 }
