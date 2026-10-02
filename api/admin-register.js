@@ -1,3 +1,4 @@
+
 import { db } from './rvns/db.js';
 import { CONFIG } from './rvns/config.js';
 import {
@@ -42,14 +43,9 @@ export default async function handler(req, res) {
   const fp = fpOf(req);
 
   try {
-    const existingSnap = await db.ref('admin').once('value');
-    const admins = existingSnap.val() || {};
-    let adminCount = 0;
-    for (const [key, row] of Object.entries(admins)) {
-      if (isAdminRow(row)) adminCount++;
-    }
-    if (adminCount > 0) {
-      return res.status(403).json({ success: false, message: 'Admin sudah terdaftar. Registrasi ditutup.' });
+    if (!CONFIG.ADMIN_KEY) {
+      console.error('[admin-register] ADMIN_KEY tidak di-set');
+      return res.status(500).json({ success: false, message: 'Server misconfigured' });
     }
 
     const { secretKey, username, email, password, confirmPassword } = req.body || {};
@@ -78,9 +74,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: 'Fingerprint tidak terdeteksi' });
     }
 
-    const id = db.ref('admin').push().key;
     const password_hash = await hashPassword(password);
-
     const ipHistory = ip && ip !== 'unknown' ? [ip] : [];
     const fpHistory = fp ? [fp] : [];
 
@@ -99,15 +93,33 @@ export default async function handler(req, res) {
       fpHistory
     };
 
-    await db.ref(`admin/${id}`).set({
-      username: sanitize(vu.username, 50),
-      role: 'admin',
-      status: 'active',
-      createdAt: Date.now(),
-      lockedIP: ip || '',
-      lockedFP: fp,
-      data: encryptAtRest(adminData)
+    // ─── FIX RACE CONDITION: Firebase Transaction ───
+    const adminRef = db.ref('admin');
+    const result = await adminRef.transaction((current) => {
+      if (current) {
+        const hasAdmin = Object.values(current).some(isAdminRow);
+        if (hasAdmin) {
+          return; // abort — admin sudah ada
+        }
+      }
+      const id = adminRef.push().key;
+      const next = current || {};
+      next[id] = {
+        username: sanitize(vu.username, 50),
+        role: 'admin',
+        status: 'active',
+        createdAt: Date.now(),
+        lockedIP: ip || '',
+        lockedFP: fp,
+        data: encryptAtRest(adminData)
+      };
+      return next;
     });
+
+    if (!result.committed) {
+      await logActivity(username || 'unknown', 'admin_register_race', 'Race condition dicegah', ip, fp);
+      return res.status(403).json({ success: false, message: 'Admin sudah terdaftar. Registrasi ditutup.' });
+    }
 
     await logActivity(vu.username, 'admin_register_success',
       `Admin baru: ${vu.username} dari IP ${ip || 'unknown'}`, ip, fp);
@@ -119,7 +131,7 @@ export default async function handler(req, res) {
       lockedIP: ip || ''
     });
   } catch (e) {
-    console.error('[admin-register]', e?.stack || e?.message || e);
+    console.error('[admin-register]', e?.message || e);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
