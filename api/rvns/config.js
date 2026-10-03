@@ -1,19 +1,25 @@
-const required = { ADMIN_KEY: 32, SESSION_SECRET: 32 };
-for (const [key, min] of Object.entries(required)) {
+// rvns/config.js
+const _required = { ADMIN_KEY: 32, SESSION_SECRET: 32 };
+const _missing = [];
+for (const [key, min] of Object.entries(_required)) {
   const v = process.env[key];
-  if (!v || v.length < min) throw new Error(`[CONFIG] ${key} wajib minimal ${min} karakter`);
+  if (!v || v.length < min) _missing.push(`${key} (min ${min} char)`);
+}
+
+if (_missing.length > 0) {
+  console.error('[CONFIG] MISSING ENV:', _missing.join(', '));
 }
 
 export const CONFIG = {
-  ADMIN_KEY: process.env.ADMIN_KEY,
-  SESSION_SECRET: process.env.SESSION_SECRET,
+  ADMIN_KEY: process.env.ADMIN_KEY || '',
+  SESSION_SECRET: process.env.SESSION_SECRET || '',
   RECAPTCHA_V2_SECRET: process.env.RECAPTCHA_V2_SECRET_KEY || '',
   RECAPTCHA_V3_SECRET: process.env.RECAPTCHA_V3_SECRET_KEY || '',
   RECAPTCHA_V2_SITE_KEY: '6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT',
   RECAPTCHA_V3_SITE_KEY: '6LcVBn4tAAAAAINTTIleUbUZr1ZykvyB6WA-oOfT',
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',
   EMAIL_FROM: process.env.EMAIL_FROM || 'Web Top Up <noreply@example.com>',
-  BASE_URL: process.env.BASE_URL || '',
+  BASE_URL: process.env.BASE_URL || 'https://hsvshsvavah-fawn.vercel.app',
   ALLOWED_ORIGINS: (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean),
   SALT_ROUNDS: 12,
   SESSION_ADMIN_MAX_AGE: 3 * 24 * 60 * 60,
@@ -23,6 +29,8 @@ export const CONFIG = {
   RESET_DAILY_MAX: 3,
   REGISTER_COOLDOWN: 3 * 24 * 60 * 60 * 1000,
   MAX_TOPUP_AMOUNT: 2147483647,
+  IS_CONFIGURED: _missing.length === 0,
+  MISSING_ENV: _missing,
   BAN_DURATIONS: {
     '1h': 3600000,
     '2h': 7200000,
