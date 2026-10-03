@@ -297,6 +297,61 @@ async function login() {
       return;
     }
 
+    if (result && result.error === 'use_admin_page') {
+      hideLoading();
+      try { grecaptcha.reset(); } catch (e) {}
+      await Swal.fire({
+        icon: 'info',
+        title: 'Login Admin',
+        html: '<p>Akun ini terdaftar sebagai <b>Admin</b>.</p><p>Silakan login di halaman admin.</p>',
+        confirmButtonText: 'Ke Halaman Admin',
+        confirmButtonColor: '#0ea5e9',
+        allowOutsideClick: false
+      });
+      window.location.href = '/admin';
+      loginInProgress = false;
+      return;
+    }
+
+    if (result && result.error === 'no_expiry') {
+      hideLoading();
+      try { grecaptcha.reset(); } catch (e) {}
+      await Swal.fire({
+        icon: 'error',
+        title: 'Masa Aktif Tidak Valid',
+        text: result.message || 'Masa aktif akun tidak di-set. Hubungi admin.',
+        confirmButtonColor: '#ef4444'
+      });
+      loginInProgress = false;
+      return;
+    }
+
+    if (result && result.error === 'bad_expiry') {
+      hideLoading();
+      try { grecaptcha.reset(); } catch (e) {}
+      await Swal.fire({
+        icon: 'error',
+        title: 'Masa Aktif Tidak Valid',
+        text: result.message || 'Format masa aktif rusak. Hubungi admin.',
+        confirmButtonColor: '#ef4444'
+      });
+      loginInProgress = false;
+      return;
+    }
+
+    if (result && result.error === 'expired') {
+      hideLoading();
+      try { grecaptcha.reset(); } catch (e) {}
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Masa Aktif Habis',
+        text: result.message || 'Hubungi admin untuk perpanjang.',
+        confirmButtonColor: '#f59e0b'
+      });
+      loginInProgress = false;
+      return;
+    }
+
     if (result && result.banned) {
       hideLoading();
       Swal.fire({
