@@ -75,7 +75,6 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
     }
   }
 
-  // ─── FIX: cek masa aktif di dashboard ───
   const expiry = data.expiry_date || '';
   if (!expiry) {
     return res.status(200).json({
@@ -131,8 +130,7 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
       data.fpChangedAt = Date.now();
       data.fpChangedFrom = lockedFP;
       await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
-      await logActivity(row.username, 'fp_rotated',
-        `FP berubah tapi IP sama`, ip, fp);
+      await logActivity(row.username, 'fp_rotated', 'FP berubah tapi IP sama', ip, fp);
     } else {
       data.forceLogout = true;
       data.forceLogoutUntil = 0;
@@ -144,10 +142,9 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
         status: row.status,
         forceLogout: true
       });
-      await logActivity(row.username, 'sharing_detected',
-        `FP & IP beda`, ip, fp);
+      await logActivity(row.username, 'sharing_detected', 'FP & IP beda', ip, fp);
       await detectSuspicious(auth.user, 'sharing_detected', ip, fp,
-        `User login dari device + jaringan lain.`);
+        'User login dari device + jaringan lain.');
       return res.status(200).json({
         valid: false,
         forceLogout: true,
