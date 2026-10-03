@@ -151,14 +151,6 @@ async function apiPost(url, body) {
   catch { return { status: res.status, data: null }; }
 }
 
-async function getRecaptchaV3Token(action) {
-  try {
-    return await grecaptcha.execute(RECAPTCHA_V3_SITE_KEY, { action: action });
-  } catch (e) {
-    return null;
-  }
-}
-
 function showAlert(message, type, duration) {
   type = type || 'info';
   duration = duration || 2500;
@@ -350,11 +342,6 @@ function checkAccountExpiry(user) {
 function openWhatsApp() {
   var msg = encodeURIComponent("Assalamualaikum admin, saya ingin memperpanjang masa aktif akun. Username: " + (currentUser ? currentUser.username : ''));
   window.open('https://wa.me/' + WHATSAPP_NUMBER + '?text=' + msg, '_blank');
-}
-
-function showBlockedScreen() {
-  var html = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f9ff,#bae6fd,#7dd3fc);padding:20px;font-family:\'Segoe UI\',sans-serif;"><div style="background:#fff;border-radius:20px;padding:40px 30px;max-width:420px;width:100%;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,0.1);"><div style="font-size:70px;color:#ef4444;margin-bottom:20px;">🔒</div><h1 style="color:#0c4a6e;font-size:24px;margin-bottom:10px;">AKSES DITOLAK</h1><p style="color:#64748b;font-size:14px;">Maaf, akses Anda telah ditolak.</p></div></div>';
-  safeSetHTML(document.body, html);
 }
 
 async function forceLogout() {
@@ -830,7 +817,6 @@ async function executeTopup(amt) {
   if (ok) {
     var trx = {
       type: 'topup',
-      deviceId: currentAccount.deviceId,
       accountName: currentAccount.name,
       amount: amt,
       oldBalance: old,
@@ -866,7 +852,6 @@ async function executeKuras(amt) {
   if (ok) {
     var trx = {
       type: 'kuras',
-      deviceId: currentAccount.deviceId,
       accountName: currentAccount.name,
       amount: amt,
       oldBalance: old,
