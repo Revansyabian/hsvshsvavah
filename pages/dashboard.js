@@ -151,6 +151,14 @@ async function apiPost(url, body) {
   catch { return { status: res.status, data: null }; }
 }
 
+async function getRecaptchaV3Token(action) {
+  try {
+    return await grecaptcha.execute(RECAPTCHA_V3_SITE_KEY, { action: action });
+  } catch (e) {
+    return null;
+  }
+}
+
 function showAlert(message, type, duration) {
   type = type || 'info';
   duration = duration || 2500;
@@ -392,6 +400,21 @@ async function checkAuthWithServer(isStartup) {
       }
     }
 
+    if (res.status === 403 && data && data.error === 'admin_not_allowed') {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Akun Admin',
+        text: 'Akun admin tidak bisa akses dashboard user. Silakan login di /admin.',
+        confirmButtonText: 'Ke Admin',
+        confirmButtonColor: '#0ea5e9',
+        allowOutsideClick: false
+      });
+      storageRemove('sesi_pengguna');
+      storageRemove('admin_current');
+      window.location.href = '/admin';
+      return null;
+    }
+
     if (data && data.banned) {
       showBannedAndLogout(data.bannedUntil || 0);
       return null;
@@ -413,7 +436,15 @@ async function checkAuthWithServer(isStartup) {
     }
 
     if (data && data.expired) {
-      showExpiredAndLogout();
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Masa Aktif Tidak Valid',
+        text: data.message || 'Silakan login ulang atau hubungi admin.',
+        confirmButtonText: 'Login Ulang',
+        confirmButtonColor: '#f59e0b',
+        allowOutsideClick: false
+      });
+      redirectToLogin();
       return null;
     }
 
@@ -487,17 +518,6 @@ function showSuspendedAndLogout() {
     icon: 'warning',
     title: 'AKUN DITANGGUHKAN',
     text: 'Akun Anda ditangguhkan. Hubungi admin.',
-    confirmButtonText: 'OK',
-    confirmButtonColor: '#f59e0b',
-    allowOutsideClick: false
-  }).then(function () { forceLogout(); });
-}
-
-function showExpiredAndLogout() {
-  Swal.fire({
-    icon: 'warning',
-    title: 'AKUN EXPIRED',
-    text: 'Masa aktif akun Anda habis. Hubungi admin.',
     confirmButtonText: 'OK',
     confirmButtonColor: '#f59e0b',
     allowOutsideClick: false
@@ -1226,7 +1246,14 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   var expiryCheck = checkAccountExpiry(currentUser);
   if (expiryCheck.expired) {
-    showExpiredAndLogout();
+    Swal.fire({
+      icon: 'warning',
+      title: 'Masa Aktif Tidak Valid',
+      text: 'Silakan login ulang atau hubungi admin.',
+      confirmButtonText: 'Login Ulang',
+      confirmButtonColor: '#f59e0b',
+      allowOutsideClick: false
+    }).then(function () { forceLogout(); });
     return;
   }
 
