@@ -20,7 +20,6 @@ import {
   methodGuard,
   bodyGuard
 } from './rvns/middleware.js';
-import crypto from 'node:crypto';
 
 async function handleCheckStatus(req, res, auth, ip, fp) {
   const row = auth.user.row;
@@ -76,14 +75,34 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
     }
   }
 
+  // ─── FIX: cek masa aktif di dashboard ───
   const expiry = data.expiry_date || '';
-  if (expiry && !String(expiry).includes('9999')) {
+  if (!expiry) {
+    return res.status(200).json({
+      valid: false,
+      expired: true,
+      reason: 'no_expiry',
+      message: 'Masa aktif tidak valid. Coba login lagi.'
+    });
+  }
+  if (!String(expiry).includes('9999')) {
     const expiryDate = new Date(expiry);
-    if (!isNaN(expiryDate.getTime())) {
-      expiryDate.setHours(23, 59, 59, 999);
-      if (Date.now() > expiryDate.getTime()) {
-        return res.status(200).json({ expired: true });
-      }
+    if (isNaN(expiryDate.getTime())) {
+      return res.status(200).json({
+        valid: false,
+        expired: true,
+        reason: 'bad_expiry',
+        message: 'Masa aktif tidak valid. Coba login lagi.'
+      });
+    }
+    expiryDate.setHours(23, 59, 59, 999);
+    if (Date.now() > expiryDate.getTime()) {
+      return res.status(200).json({
+        valid: false,
+        expired: true,
+        reason: 'expired',
+        message: 'Masa aktif habis. Hubungi admin.'
+      });
     }
   }
 
@@ -171,7 +190,6 @@ async function handleGetTransactions(req, res, auth) {
 async function handleSaveTransaction(req, res, auth, ip, fp) {
   const data = req.body || {};
 
-  // deviceId TIDAK disimpan. Kalau butuh display, bikin masked ID.
   const maskedDeviceId = (() => {
     const raw = String(data.deviceId || '').trim();
     if (!raw) return '';
