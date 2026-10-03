@@ -136,19 +136,18 @@ async function handleLogin(req, res, ip, fp) {
   }
 
   const found = await findUserByUsername(username);
+
+  // ─── FIX: kalau user tidak ada ATAU role-nya admin, anggap "username atau password salah"
+  //          (jangan bocorkan info kalau dia admin)
   if (!found) {
     await logActivity(username, 'login_failed', 'User tidak ditemukan', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
 
-  // ─── FIX: blokir admin login di user page ───
   if (String(found.row.role || '').toLowerCase() === 'admin') {
     await logActivity(username, 'login_admin_via_user_page', 'Admin coba login di halaman user', ip, fp).catch(() => {});
-    return res.status(200).json({
-      success: false,
-      error: 'use_admin_page',
-      message: 'Akun admin harus login di halaman /admin'
-    });
+    // samarkan sebagai "username atau password salah" biar tidak bisa enumerasi role
+    return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
 
   if (found.row.status === 'pending') {
@@ -178,14 +177,12 @@ async function handleLogin(req, res, ip, fp) {
     return res.status(200).json({ success: false, forceLogout: true, message: 'Akun ditangguhkan' });
   }
 
-  // ─── FIX: cek masa aktif ───
   const expiry = found.data.expiry_date || '';
   if (!expiry) {
     await logActivity(username, 'login_no_expiry', 'Masa aktif tidak diset', ip, fp).catch(() => {});
     return res.status(200).json({
       success: false,
-      error: 'no_expiry',
-      message: 'Masa aktif akun tidak valid. Hubungi admin.'
+      message: 'Username atau password salah'
     });
   }
   if (!String(expiry).includes('9999')) {
@@ -194,8 +191,7 @@ async function handleLogin(req, res, ip, fp) {
       await logActivity(username, 'login_bad_expiry', 'Format masa aktif tidak valid', ip, fp).catch(() => {});
       return res.status(200).json({
         success: false,
-        error: 'bad_expiry',
-        message: 'Masa aktif akun tidak valid. Hubungi admin.'
+        message: 'Username atau password salah'
       });
     }
     expiryDate.setHours(23, 59, 59, 999);
@@ -203,7 +199,7 @@ async function handleLogin(req, res, ip, fp) {
       await logActivity(username, 'login_expired', 'Akun expired', ip, fp).catch(() => {});
       return res.status(200).json({
         success: false,
-        error: 'expired',
+        expired: true,
         message: 'Masa aktif akun habis. Hubungi admin untuk perpanjang.'
       });
     }
@@ -353,6 +349,16 @@ async function handleLogout(req, res, ip, fp) {
   return res.status(200).json({ success: true });
 }
 
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '';
+  const parts = email.split('@');
+  if (parts.length !== 2) return email;
+  const local = parts[0];
+  const domain = parts[1];
+  if (local.length <= 2) return local[0] + '***@' + domain;
+  return local.slice(0, 2) + '***' + local.slice(-1) + '@' + domain;
+}
+
 async function handleRequestReset(req, res, ip, fp) {
   const { username, captchaToken } = req.body || {};
   if (!username || username.length < 3) {
@@ -368,11 +374,13 @@ async function handleRequestReset(req, res, ip, fp) {
   }
 
   const found = await findUserByUsername(username);
-  if (!found || !found.data.email) {
-    return res.status(200).json({ success: true, message: 'Jika username terdaftar, link reset akan dikirim' });
-  }
 
-  if (String(found.row.role || '').toLowerCase() === 'admin') {
+  // Samarkan: kalau user tidak ada ATAU role admin ATAU tidak punya email, kasih response generic
+  const isUserReal = found
+    && String(found.row.role || '').toLowerCase() !== 'admin'
+    && found.data.email;
+
+  if (!isUserReal) {
     return res.status(200).json({ success: true, message: 'Jika username terdaftar, link reset akan dikirim' });
   }
 
@@ -419,8 +427,7 @@ async function handleRequestReset(req, res, ip, fp) {
   }
 
   await logActivity(username, 'request_reset', 'Link reset dikirim', ip, fp).catch(() => {});
-  const parts = found.data.email.split('@');
-  const masked = parts[0].slice(0, 1) + '***@' + parts[1];
+  const masked = maskEmail(found.data.email);
   return res.status(200).json({ success: true, maskedEmail: masked, message: 'Link reset dikirim' });
 }
 
@@ -480,6 +487,11 @@ async function handleConfirmReset(req, res, ip, fp) {
   }
 
   const row = userSnap.val();
+  if (String(row.role || '').toLowerCase() === 'admin') {
+    await db.ref(`reset_tokens/${tokenHash}`).remove();
+    return res.status(200).json({ success: false, message: 'Link tidak valid' });
+  }
+
   const d = decryptAtRest(row.data) || {};
   const password_hash = await hashPassword(newPassword);
 
