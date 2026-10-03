@@ -195,6 +195,8 @@ function updatePasswordCounter() {
 
 async function autoCheckSession() {
   try {
+    storageRemove('sesi_pengguna');
+
     const { fp, sig } = await getSignedFingerprint();
     const headers = { 'X-Fingerprint': fp };
     if (sig) headers['X-FP-Sig'] = sig;
@@ -232,13 +234,13 @@ async function waitForSessionCommit(maxAttempts) {
 
       if (res.status === 200) {
         const data = await res.json();
-        if (data && data.valid && data.user) return true;
+        if (data && data.valid && data.user) return data.user;
       }
     } catch (e) {}
 
     await new Promise(function (r) { setTimeout(r, 300); });
   }
-  return false;
+  return null;
 }
 
 async function login() {
@@ -277,6 +279,10 @@ async function login() {
     }
 
     showLoading('Login...');
+
+    storageRemove('sesi_pengguna');
+    storageRemove('admin_current');
+    storageRemove('session_start');
 
     var result = await apiPost(API_AUTH + '?action=login', {
       username: username,
@@ -352,10 +358,9 @@ async function login() {
     }
 
     if (result && result.success) {
-      // FIX: tunggu cookie ke-commit sebelum redirect
-      var sessionOk = await waitForSessionCommit(12);
+      var sessionUser = await waitForSessionCommit(12);
 
-      if (!sessionOk) {
+      if (!sessionUser) {
         hideLoading();
         Swal.fire({
           icon: "error",
@@ -372,7 +377,7 @@ async function login() {
       Swal.fire({
         icon: "success",
         title: "Login Berhasil!",
-        text: "Selamat datang, " + (result.user?.username || username) + "!",
+        text: "Selamat datang, " + (sessionUser.username || username) + "!",
         timer: 1200,
         showConfirmButton: false
       }).then(function () {
