@@ -60,6 +60,23 @@ function timingSafeEqualStr(a, b) {
   } catch (e) { return false; }
 }
 
+function verifySessionFromToken(token) {
+  const parts = token.split('.');
+  if (parts.length !== 5) return null;
+  try {
+    const iv = Buffer.from(parts[1], 'base64url');
+    const tag = Buffer.from(parts[2], 'base64url');
+    const ct = Buffer.from(parts[3], 'base64url');
+    const SESSION_KEY = crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'fallback').digest();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', SESSION_KEY, iv);
+    decipher.setAuthTag(tag);
+    const pt = Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+    return JSON.parse(pt);
+  } catch {
+    return null;
+  }
+}
+
 async function handleLogin(req, res, ip, fp) {
   const { accessKey, username, password, captchaToken } = req.body || {};
 
@@ -147,7 +164,6 @@ async function handleLogin(req, res, ip, fp) {
     const ipSame = lockedIP && lockedIP === currentIP;
 
     if (fpSame) {
-      // OK
     } else if (ipSame) {
       await logActivity(found.username, 'admin_fp_rotated',
         `FP berubah, IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${currentFP.slice(0, 16)}...`, ip, fp);
@@ -216,8 +232,8 @@ async function handleLogin(req, res, ip, fp) {
   });
 
   const sessionToken = createSessionToken({ id: foundId, username: found.username, role: 'admin' });
-  const csrfSession = { uid: foundId, username: found.username, role: 'admin', iat: Date.now() };
-  const csrfToken = generateCSRFToken(csrfSession);
+  const session = verifySessionFromToken(sessionToken);
+  const csrfToken = generateCSRFToken(session);
   setSessionCookie(res, sessionToken, csrfToken, { role: 'admin' });
   await logActivity(found.username, 'admin_login_success', 'Login admin berhasil', ip, fp);
 
@@ -238,7 +254,11 @@ async function handleLogout(req, res, ip, fp) {
 }
 
 async function handleMe(req, res, session) {
-  return res.status(200).json({ success: true, admin: { username: session.username, role: session.role }, csrfToken: generateCSRFToken(session) });
+  return res.status(200).json({
+    success: true,
+    admin: { username: session.username, role: session.role },
+    csrfToken: generateCSRFToken(session)
+  });
 }
 
 async function handleAuthInfo(req, res, session) {
