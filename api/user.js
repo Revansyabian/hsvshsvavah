@@ -1,3 +1,4 @@
+// api/user.js
 import { db } from './rvns/db.js';
 import {
   saveUser,
@@ -19,6 +20,7 @@ import {
   methodGuard,
   bodyGuard
 } from './rvns/middleware.js';
+import crypto from 'node:crypto';
 
 async function handleCheckStatus(req, res, auth, ip, fp) {
   const row = auth.user.row;
@@ -32,7 +34,13 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
   if (row.banned === true) {
     if (data.bannedUntil && data.bannedUntil > 0 && data.bannedUntil < Date.now()) {
       data.bannedUntil = 0;
-      await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status, banned: false, forceLogout: false });
+      await saveUser(auth.user.id, {
+        ...data,
+        username: row.username,
+        role: row.role,
+        status: row.status,
+        banned: false
+      });
     } else {
       return res.status(200).json({ banned: true, bannedUntil: data.bannedUntil || 0 });
     }
@@ -41,7 +49,13 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
   if (row.accessBanned === true) {
     if (data.banAksesUntil && data.banAksesUntil > 0 && data.banAksesUntil < Date.now()) {
       data.banAksesUntil = 0;
-      await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status, accessBanned: false, forceLogout: false });
+      await saveUser(auth.user.id, {
+        ...data,
+        username: row.username,
+        role: row.role,
+        status: row.status,
+        accessBanned: false
+      });
     } else {
       return res.status(200).json({ banAkses: true, banAksesUntil: data.banAksesUntil || 0 });
     }
@@ -50,58 +64,60 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
   if (row.forceLogout === true) {
     if (data.forceLogoutUntil && data.forceLogoutUntil > 0 && data.forceLogoutUntil < Date.now()) {
       data.forceLogoutUntil = 0;
-      await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status, forceLogout: false });
+      await saveUser(auth.user.id, {
+        ...data,
+        username: row.username,
+        role: row.role,
+        status: row.status,
+        forceLogout: false
+      });
     } else {
       return res.status(200).json({ forceLogout: true });
     }
   }
 
-  // ── FP/IP Sharing Detection dengan grace period ──
+  const expiry = data.expiry_date || '';
+  if (expiry && !String(expiry).includes('9999')) {
+    const expiryDate = new Date(expiry);
+    if (!isNaN(expiryDate.getTime())) {
+      expiryDate.setHours(23, 59, 59, 999);
+      if (Date.now() > expiryDate.getTime()) {
+        return res.status(200).json({ expired: true });
+      }
+    }
+  }
+
   const lockedFP = data.lockedFP || '';
   const lockedIP = data.lockedIP || '';
   const currentFP = fp || '';
   const currentIP = ip || '';
 
   if (!lockedFP && currentFP) {
-    // Belum ada FP → set
     data.lockedFP = currentFP;
     data.lockedIP = currentIP;
     data.lockedAt = Date.now();
     await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
-  }
-  else if (lockedFP && currentFP) {
+  } else if (lockedFP && currentFP) {
     const fpSame = lockedFP === currentFP;
     const ipSame = !lockedIP || !currentIP || lockedIP === currentIP;
 
     if (fpSame) {
-      // FP sama, update IP kalau beda
       if (currentIP && lockedIP !== currentIP) {
         data.lockedIP = currentIP;
         data.ipChangeAt = Date.now();
         await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
       }
-    }
-    else if (ipSame) {
-      // FP beda, IP sama → migrate
+    } else if (ipSame) {
       data.lockedFP = currentFP;
       data.fpChangedAt = Date.now();
       data.fpChangedFrom = lockedFP;
       await saveUser(auth.user.id, { ...data, username: row.username, role: row.role, status: row.status });
       await logActivity(row.username, 'fp_rotated',
-        `FP berubah tapi IP sama. Prev: ${lockedFP.slice(0, 16)}..., New: ${currentFP.slice(0, 16)}...`, ip, fp);
-    }
-    else {
-      // FP & IP dua-duanya beda → sharing
+        `FP berubah tapi IP sama`, ip, fp);
+    } else {
       data.forceLogout = true;
       data.forceLogoutUntil = 0;
-      data.shareDetected = {
-        at: Date.now(),
-        prevFP: lockedFP,
-        newFP: currentFP,
-        prevIP: lockedIP,
-        newIP: currentIP,
-        type: 'fp_and_ip_mismatch'
-      };
+      data.shareDetected = { at: Date.now(), type: 'fp_and_ip_mismatch' };
       await saveUser(auth.user.id, {
         ...data,
         username: row.username,
@@ -110,14 +126,14 @@ async function handleCheckStatus(req, res, auth, ip, fp) {
         forceLogout: true
       });
       await logActivity(row.username, 'sharing_detected',
-        `FP & IP beda. Prev FP: ${lockedFP.slice(0, 16)}..., New FP: ${currentFP.slice(0, 16)}..., Prev IP: ${lockedIP}, New IP: ${currentIP}`, ip, fp);
+        `FP & IP beda`, ip, fp);
       await detectSuspicious(auth.user, 'sharing_detected', ip, fp,
-        `User login dari device + jaringan lain. Silakan hubungi admin.`);
+        `User login dari device + jaringan lain.`);
       return res.status(200).json({
         valid: false,
         forceLogout: true,
         share: true,
-        message: 'Akun terdeteksi login dari perangkat lain. Silakan hubungi admin.'
+        message: 'Akun terdeteksi login dari perangkat lain. Hubungi admin.'
       });
     }
   }
@@ -143,7 +159,11 @@ async function handleGetTransactions(req, res, auth) {
   const result = {};
   for (const [k, v] of Object.entries(raw)) {
     if (now - (v.createdAt || 0) > 172800000) { db.ref(`transactions/${k}`).remove(); continue; }
-    result[k] = decryptAny(v.data) || {};
+    const d = decryptAny(v.data) || {};
+    delete d.deviceId;
+    delete d.authToken;
+    delete d.xAuth;
+    result[k] = d;
   }
   return res.status(200).json({ success: true, transactions: result });
 }
@@ -151,7 +171,14 @@ async function handleGetTransactions(req, res, auth) {
 async function handleSaveTransaction(req, res, auth, ip, fp) {
   const data = req.body || {};
 
-  // ─── FIX: whitelist field, jangan encrypt raw ───
+  // deviceId TIDAK disimpan. Kalau butuh display, bikin masked ID.
+  const maskedDeviceId = (() => {
+    const raw = String(data.deviceId || '').trim();
+    if (!raw) return '';
+    if (raw.length <= 8) return raw.slice(0, 2) + '***';
+    return raw.slice(0, 4) + '***' + raw.slice(-4);
+  })();
+
   const sanitizedData = {
     type: sanitize(data.type, 20),
     accountName: sanitize(data.accountName, 100),
@@ -160,7 +187,7 @@ async function handleSaveTransaction(req, res, auth, ip, fp) {
     newBalance: Number(data.newBalance) || 0,
     oldName: sanitize(data.oldName, 100),
     newName: sanitize(data.newName, 100),
-    deviceId: sanitize(data.deviceId, 200),
+    maskedDeviceId: maskedDeviceId,
     status: sanitize(data.status, 20),
     operator: auth.session.username
   };
@@ -180,6 +207,14 @@ async function handleSaveTransaction(req, res, auth, ip, fp) {
   await trackUserIPFP(auth.user.id, ip, fp);
 
   return res.status(200).json({ success: true, id });
+}
+
+async function handleDeleteTransactions(req, res, auth) {
+  const snap = await db.ref('transactions').orderByChild('owner').equalTo(auth.session.username).once('value');
+  const updates = {};
+  for (const k of Object.keys(snap.val() || {})) updates[k] = null;
+  if (Object.keys(updates).length) await db.ref('transactions').update(updates);
+  return res.status(200).json({ success: true });
 }
 
 export default async function handler(req, res) {
