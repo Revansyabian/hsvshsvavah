@@ -90,18 +90,6 @@ async function findUserByIdSafe(id) {
   return { id, row, data: decryptAny(row.data) || {} };
 }
 
-async function findUserByUsernameSafe(username) {
-  const target = String(username || '').toLowerCase().trim();
-  if (!target) return null;
-  const snap = await db.ref('users').once('value');
-  for (const [id, row] of Object.entries(snap.val() || {})) {
-    if (String(row.username || '').toLowerCase() === target) {
-      return { id, row, data: decryptAny(row.data) || {} };
-    }
-  }
-  return null;
-}
-
 export async function requireAuth(req, res, opts = {}) {
   const session = verifySession(req);
   if (!session) {
@@ -117,16 +105,13 @@ export async function requireAuth(req, res, opts = {}) {
 
   const role = String(session.role || '').toLowerCase();
 
+  // ─── FIX: admin role TIDAK BOLEH akses endpoint user ───
   if (role === 'admin' || role === 'superadmin') {
-    const adminUser = await findAdminById(session.uid);
-    if (adminUser) {
-      return { session, user: adminUser, csrfToken: generateCSRFToken(session), isAdmin: true };
-    }
-    const fallbackUser = await findUserByUsernameSafe(session.username);
-    if (fallbackUser) {
-      return { session, user: fallbackUser, csrfToken: generateCSRFToken(session), isAdmin: true };
-    }
-    res.status(401).json({ success: false, message: 'Admin tidak ditemukan' });
+    res.status(403).json({
+      success: false,
+      error: 'admin_not_allowed',
+      message: 'Akun admin tidak bisa mengakses halaman user. Login di /admin.'
+    });
     return null;
   }
 
