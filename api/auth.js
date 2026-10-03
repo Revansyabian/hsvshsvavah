@@ -23,6 +23,80 @@ function _signFingerprint(raw) {
   return crypto.createHmac('sha256', CONFIG.SESSION_SECRET).update(String(raw)).digest('base64url');
 }
 
+function verifySessionFromToken(token) {
+  const parts = token.split('.');
+  if (parts.length !== 5) return null;
+  try {
+    const iv = Buffer.from(parts[1], 'base64url');
+    const tag = Buffer.from(parts[2], 'base64url');
+    const ct = Buffer.from(parts[3], 'base64url');
+    const SESSION_KEY = crypto.createHash('sha256').update(CONFIG.SESSION_SECRET || 'fallback').digest();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', SESSION_KEY, iv);
+    decipher.setAuthTag(tag);
+    const pt = Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+    return JSON.parse(pt);
+  } catch {
+    return null;
+  }
+}
+
+function resetEmailHtml(resetLink) {
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Reset Password - Web Top Up BUSSID</title>
+<style>
+  body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
+  table,td{mso-table-lspace:0;mso-table-rspace:0}
+  img{-ms-interpolation-mode:bicubic;border:0;height:auto;line-height:100%;outline:none;text-decoration:none}
+  body{margin:0;padding:0;width:100%!important;background:#F0F4F8;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif}
+  a{text-decoration:none}
+  @media screen and (max-width:600px){.container{width:100%!important}.px{padding-left:24px!important;padding-right:24px!important}.h1{font-size:24px!important}.btn-link{display:block!important;width:100%!important;padding:16px 20px!important;box-sizing:border-box!important}}
+</style>
+</head>
+<body style="margin:0;padding:0;background:#F0F4F8;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<div style="display:none;font-size:1px;color:#F0F4F8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Reset password untuk akun Web Top Up BUSSID kamu.</div>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#F0F4F8;">
+<tr><td align="center" style="padding:48px 20px;">
+<table class="container" role="presentation" border="0" cellpadding="0" cellspacing="0" width="480" style="max-width:480px;background:#FFFFFF;border:3px solid #0F172A;border-radius:16px;box-shadow:8px 8px 0 #0F172A;">
+<tr><td class="px" style="padding:40px 40px 32px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
+<tr><td align="center">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center">
+<tr><td style="display:inline-block;padding:6px 16px;background:#00BFFF;border:2px solid #0F172A;border-radius:999px;box-shadow:3px 3px 0 #0F172A;">
+<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#FFFFFF;text-transform:uppercase;font-family:'Inter',Arial,sans-serif;white-space:nowrap;">Web Top Up BUSSID</span>
+</td></tr>
+</table>
+</td></tr>
+</table>
+<h1 class="h1" style="margin:0 0 16px;font-size:28px;font-weight:900;letter-spacing:-0.8px;color:#0F172A;line-height:1.15;font-family:'Inter',Arial,sans-serif;">Reset password</h1>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#475569;font-weight:400;font-family:'Inter',Arial,sans-serif;">Kami menerima permintaan reset password untuk akun kamu. Klik tombol di bawah untuk membuat password baru.</p>
+<p style="margin:0 0 28px;font-size:15px;line-height:1.6;color:#475569;font-weight:400;font-family:'Inter',Arial,sans-serif;">Link ini berlaku selama <strong style="color:#B45309;font-weight:800;background:#FEF3C7;padding:1px 6px;border-radius:4px;">15 menit</strong>. Kalau kamu tidak meminta reset password, abaikan email ini.</p>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 36px;">
+<tr><td align="center" valign="middle" bgcolor="#00BFFF" style="background:#00BFFF;border:3px solid #0F172A;border-radius:10px;box-shadow:4px 4px 0 #0F172A;">
+<a class="btn-link" href="${resetLink}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:14px;font-weight:900;letter-spacing:0.8px;text-transform:uppercase;color:#FFFFFF;text-decoration:none;font-family:'Inter',Arial,sans-serif;text-align:center;line-height:1.2;">Reset password</a>
+</td></tr>
+</table>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;">
+<tr><td style="border-top:2px dashed #CBD5E1;height:1px;line-height:1px;font-size:0;">&nbsp;</td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#94A3B8;font-weight:400;font-family:'Inter',Arial,sans-serif;">Tombol tidak berfungsi? Copy link di bawah ini ke browser kamu.</p>
+<p style="margin:0;font-size:13px;line-height:1.5;font-weight:600;font-family:'Inter',Arial,sans-serif;word-break:break-all;"><a href="${resetLink}" style="color:#0095CC;text-decoration:none;word-break:break-all;">${resetLink}</a></p>
+</td></tr>
+</table>
+<table class="container" role="presentation" border="0" cellpadding="0" cellspacing="0" width="480" style="max-width:480px;margin-top:24px;">
+<tr><td class="px" style="padding:0 20px;text-align:center;">
+<p style="margin:0;font-size:12px;line-height:1.5;color:#94A3B8;font-weight:400;font-family:'Inter',Arial,sans-serif;">Email otomatis. Jangan dibalas.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 async function handleSignFingerprint(req, res) {
   try {
     const { fp } = req.body || {};
@@ -66,6 +140,17 @@ async function handleLogin(req, res, ip, fp) {
     await logActivity(username, 'login_failed', 'User tidak ditemukan', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
+
+  // ─── FIX: blokir admin login di user page ───
+  if (String(found.row.role || '').toLowerCase() === 'admin') {
+    await logActivity(username, 'login_admin_via_user_page', 'Admin coba login di halaman user', ip, fp).catch(() => {});
+    return res.status(200).json({
+      success: false,
+      error: 'use_admin_page',
+      message: 'Akun admin harus login di halaman /admin'
+    });
+  }
+
   if (found.row.status === 'pending') {
     return res.status(200).json({ success: false, error: 'pending_activation', message: 'Akun belum diaktivasi admin' });
   }
@@ -91,6 +176,37 @@ async function handleLogin(req, res, ip, fp) {
   if (found.row.forceLogout) {
     await logActivity(username, 'login_force_logout', 'Force logout aktif', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, forceLogout: true, message: 'Akun ditangguhkan' });
+  }
+
+  // ─── FIX: cek masa aktif ───
+  const expiry = found.data.expiry_date || '';
+  if (!expiry) {
+    await logActivity(username, 'login_no_expiry', 'Masa aktif tidak diset', ip, fp).catch(() => {});
+    return res.status(200).json({
+      success: false,
+      error: 'no_expiry',
+      message: 'Masa aktif akun tidak valid. Hubungi admin.'
+    });
+  }
+  if (!String(expiry).includes('9999')) {
+    const expiryDate = new Date(expiry);
+    if (isNaN(expiryDate.getTime())) {
+      await logActivity(username, 'login_bad_expiry', 'Format masa aktif tidak valid', ip, fp).catch(() => {});
+      return res.status(200).json({
+        success: false,
+        error: 'bad_expiry',
+        message: 'Masa aktif akun tidak valid. Hubungi admin.'
+      });
+    }
+    expiryDate.setHours(23, 59, 59, 999);
+    if (Date.now() > expiryDate.getTime()) {
+      await logActivity(username, 'login_expired', 'Akun expired', ip, fp).catch(() => {});
+      return res.status(200).json({
+        success: false,
+        error: 'expired',
+        message: 'Masa aktif akun habis. Hubungi admin untuk perpanjang.'
+      });
+    }
   }
 
   const ok = await verifyPassword(password, found.data.password_hash);
@@ -146,14 +262,9 @@ async function handleLogin(req, res, ip, fp) {
     username: found.row.username,
     role: found.row.role
   });
-  const csrfSession = {
-    uid: found.id,
-    username: found.row.username,
-    role: found.row.role,
-    iat: Date.now(),
-    exp: Date.now() + CONFIG.SESSION_USER_MAX_AGE * 1000
-  };
-  const csrfToken = generateCSRFToken(csrfSession);
+
+  const session = verifySessionFromToken(sessionToken);
+  const csrfToken = generateCSRFToken(session);
 
   setSessionCookie(res, sessionToken, csrfToken, { role: found.row.role });
 
@@ -261,6 +372,10 @@ async function handleRequestReset(req, res, ip, fp) {
     return res.status(200).json({ success: true, message: 'Jika username terdaftar, link reset akan dikirim' });
   }
 
+  if (String(found.row.role || '').toLowerCase() === 'admin') {
+    return res.status(200).json({ success: true, message: 'Jika username terdaftar, link reset akan dikirim' });
+  }
+
   const limit = await checkResetLimit(found.id);
   if (!limit.allowed) {
     return res.status(200).json({ success: false, error: 'reset_limit', message: limit.reason });
@@ -276,25 +391,13 @@ async function handleRequestReset(req, res, ip, fp) {
     expiresAt
   });
 
-  const updated = {
-    ...found.data,
-    resetToken: token,
-    resetTokenExpiry: expiresAt
-  };
-  await saveUser(found.id, {
-    ...updated,
-    username: found.row.username,
-    role: found.row.role,
-    status: found.row.status
-  });
-
   await recordReset(found.id, ip, fp);
 
-  const link = `${CONFIG.BASE_URL}/pages/confirm-password?token=${token}`;
+  const resetLink = `${CONFIG.BASE_URL}/pages/confirm-password?token=${token}`;
 
   if (CONFIG.RESEND_API_KEY) {
     try {
-      await fetch('https://api.resend.com/emails', {
+      const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -303,11 +406,16 @@ async function handleRequestReset(req, res, ip, fp) {
         body: JSON.stringify({
           from: CONFIG.EMAIL_FROM,
           to: [found.data.email],
-          subject: 'Reset Password',
-          html: `<p>Klik link berikut untuk reset password:</p><p><a href="${link}">${link}</a></p><p>Link expired dalam 15 menit.</p>`
+          subject: 'Reset Password - Web Top Up BUSSID',
+          html: resetEmailHtml(resetLink)
         })
       });
+      if (!emailRes.ok) {
+        console.error('Resend error:', await emailRes.text());
+      }
     } catch (e) { console.error('email error:', e?.message); }
+  } else {
+    console.warn('[auth] RESEND_API_KEY tidak di-set. Email tidak dikirim. Link:', resetLink);
   }
 
   await logActivity(username, 'request_reset', 'Link reset dikirim', ip, fp).catch(() => {});
