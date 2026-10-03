@@ -1,9 +1,47 @@
+// pages/admin.js
 const API = '/api/admin';
 let usersCache = [];
 let currentAdmin = null;
 let shareCheckInterval = null;
 let sessionTimerInterval = null;
 let sessionExpiresAt = 0;
+let _csrfCache = '';
+let _fpCache = '';
+let _fpSigCache = '';
+
+async function getFingerprint() {
+  if (_fpCache) return _fpCache;
+  var fp = '';
+  fp += navigator.userAgent || '';
+  fp += navigator.language || '';
+  fp += (screen.width || 0) + 'x' + (screen.height || 0);
+  fp += screen.colorDepth || '';
+  fp += new Date().getTimezoneOffset();
+  fp += navigator.hardwareConcurrency || '';
+  fp += navigator.deviceMemory || '';
+  fp += navigator.platform || '';
+  _fpCache = CryptoJS.MD5(fp).toString();
+  return _fpCache;
+}
+
+async function getSignedFingerprint() {
+  const fp = await getFingerprint();
+  if (_fpSigCache) return { fp, sig: _fpSigCache };
+  try {
+    const res = await fetch('/api/auth?action=sign-fp', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fp })
+    });
+    const data = await res.json();
+    if (data && data.success && data.sig) {
+      _fpSigCache = data.sig;
+      return { fp, sig: _fpSigCache };
+    }
+  } catch (e) {}
+  return { fp, sig: '' };
+}
 
 const StorageVault = (function () {
   'use strict';
@@ -11,19 +49,6 @@ const StorageVault = (function () {
   const KEY_ENDPOINT = '/api/admin?action=storage-key';
   let _key = null;
   let _keyPromise = null;
-
-  function _fp() {
-    var fp = '';
-    fp += navigator.userAgent || '';
-    fp += navigator.language || '';
-    fp += (screen.width || 0) + 'x' + (screen.height || 0);
-    fp += screen.colorDepth || '';
-    fp += new Date().getTimezoneOffset();
-    fp += navigator.hardwareConcurrency || '';
-    fp += navigator.deviceMemory || '';
-    fp += navigator.platform || '';
-    return CryptoJS.MD5(fp).toString();
-  }
 
   function _getCSRF() {
     const v = document.cookie.split('; ').find(r => r.startsWith('csrf_token='));
@@ -35,11 +60,15 @@ const StorageVault = (function () {
     if (_keyPromise) return _keyPromise;
     _keyPromise = (async () => {
       try {
-        const fp = _fp();
+        const fp = await getFingerprint();
+        const { sig } = await getSignedFingerprint();
+        const headers = { 'Content-Type': 'application/json', 'X-Fingerprint': fp, 'X-CSRF-Token': _getCSRF() };
+        if (sig) headers['X-FP-Sig'] = sig;
+
         const res = await fetch(KEY_ENDPOINT, {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json', 'X-Fingerprint': fp, 'X-CSRF-Token': _getCSRF() },
+          headers,
           body: JSON.stringify({})
         });
         if (!res.ok) return null;
@@ -113,7 +142,6 @@ function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-/* ─── Neo-Brut Swal Helper ─── */
 const NEO_INPUT_STYLE = 'width:100%;padding:12px 14px;border:2px solid #0F172A;border-radius:10px;font-size:14px;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A;outline:none;font-family:inherit';
 const NEO_SELECT_STYLE = 'width:100%;padding:12px 14px;border:2px solid #0F172A;border-radius:10px;font-size:14px;font-weight:600;background:#fff;box-shadow:2px 2px 0 #0F172A;outline:none;font-family:inherit;cursor:pointer';
 
@@ -163,7 +191,6 @@ async function confirmBox(text) {
   return confirm(text);
 }
 
-/* ─── DURASI MAP — untuk semua konversi durasi ke ms/jam/hari ─── */
 const DURATION_MAP = {
   '1j': { ms: 3600000, label: '1 Jam' },
   '2j': { ms: 7200000, label: '2 Jam' },
@@ -176,26 +203,11 @@ const DURATION_MAP = {
   'permanen': { ms: 0, label: 'Permanen' }
 };
 
-let _fpCache = '';
-async function getFingerprint() {
-  if (_fpCache) return _fpCache;
-  var fp = '';
-  fp += navigator.userAgent || '';
-  fp += navigator.language || '';
-  fp += (screen.width || 0) + 'x' + (screen.height || 0);
-  fp += screen.colorDepth || '';
-  fp += new Date().getTimezoneOffset();
-  fp += navigator.hardwareConcurrency || '';
-  fp += navigator.deviceMemory || '';
-  fp += navigator.platform || '';
-  _fpCache = CryptoJS.MD5(fp).toString();
-  return _fpCache;
-}
-
 function getCookie(name) {
   const v = document.cookie.split('; ').find(r => r.startsWith(name + '='));
   return v ? decodeURIComponent(v.split('=')[1]) : '';
 }
+
 function setMsg(id, text, ok = false) {
   const el = $(id);
   if (!el) return;
@@ -203,10 +215,37 @@ function setMsg(id, text, ok = false) {
   el.style.color = ok ? '#10b981' : '#ef4444';
 }
 
+async function refreshCsrfFromServer() {
+  try {
+    const { fp, sig } = await getSignedFingerprint();
+    const headers = { 'Content-Type': 'application/json', 'X-Fingerprint': fp };
+    if (sig) headers['X-FP-Sig'] = sig;
+    const csrfCookie = getCookie('csrf_token');
+    if (csrfCookie) headers['X-CSRF-Token'] = csrfCookie;
+
+    const res = await fetch(API + '?action=me', {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      cache: 'no-store',
+      body: JSON.stringify({})
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.csrfToken) {
+      _csrfCache = data.csrfToken;
+      return _csrfCache;
+    }
+  } catch (e) {}
+  return null;
+}
+
 async function request(action, payload = {}) {
-  const fp = await getFingerprint();
+  const { fp, sig } = await getSignedFingerprint();
   const headers = { 'Content-Type': 'application/json', 'X-Fingerprint': fp };
-  const csrf = getCookie('csrf_token');
+  if (sig) headers['X-FP-Sig'] = sig;
+
+  const csrf = getCookie('csrf_token') || _csrfCache;
   if (csrf) headers['X-CSRF-Token'] = csrf;
 
   let res;
@@ -225,6 +264,29 @@ async function request(action, payload = {}) {
   let data;
   try { data = await res.json(); }
   catch { throw new Error('Response server tidak valid'); }
+
+  if (data && data.csrfToken) _csrfCache = data.csrfToken;
+
+  if (res.status === 403 && data && data.error === 'csrf_invalid') {
+    const fresh = await refreshCsrfFromServer();
+    if (fresh) {
+      const newHeaders = { ...headers, 'X-CSRF-Token': fresh };
+      try {
+        const retry = await fetch(API + '?action=' + encodeURIComponent(action), {
+          method: 'POST',
+          credentials: 'include',
+          headers: newHeaders,
+          cache: 'no-store',
+          body: JSON.stringify(payload)
+        });
+        const retryData = await retry.json();
+        if (retryData && retryData.csrfToken) _csrfCache = retryData.csrfToken;
+        if (retry.ok) return retryData;
+        data = retryData;
+        res = retry;
+      } catch (e) {}
+    }
+  }
 
   if (!res.ok) {
     if (res.status === 401 && action !== 'login') {
@@ -298,6 +360,8 @@ async function loginAdmin() {
     if (!r.success) throw new Error(r.message || 'Login gagal');
 
     currentAdmin = { username: r.username, role: r.role };
+    if (r.csrfToken) _csrfCache = r.csrfToken;
+
     await StorageVault.set('admin_current', currentAdmin);
     await StorageVault.set('session_start', Date.now());
 
@@ -318,6 +382,10 @@ async function loginAdmin() {
     showApp();
     $('navbarUserName').textContent = r.username;
     $('adminAvatar').textContent = (r.username || 'A')[0].toUpperCase();
+
+    await new Promise(res => setTimeout(res, 500));
+    await refreshCsrfFromServer();
+
     await loadDashboard();
     switchPage('dashboard');
     startShareCheck();
@@ -337,6 +405,7 @@ async function logoutAdmin() {
   try { await request('logout'); } catch {}
   StorageVault.remove('admin_current');
   StorageVault.remove('session_start');
+  _csrfCache = '';
   location.reload();
 }
 
@@ -370,6 +439,7 @@ function startSessionTimer(seconds) {
         try { await request('logout'); } catch {}
         StorageVault.remove('admin_current');
         StorageVault.remove('session_start');
+        _csrfCache = '';
         location.reload();
       });
     }
@@ -398,6 +468,7 @@ function startShareCheck() {
         try { await request('logout'); } catch {}
         StorageVault.remove('admin_current');
         StorageVault.remove('session_start');
+        _csrfCache = '';
         location.reload();
       }
     } catch (e) {}
@@ -1067,6 +1138,7 @@ async function boot() {
     const r = await request('me');
     if (r.success) {
       currentAdmin = r.admin;
+      if (r.csrfToken) _csrfCache = r.csrfToken;
       showApp();
       $('navbarUserName').textContent = r.admin.username || 'Admin';
       $('adminAvatar').textContent = (r.admin.username || 'A')[0].toUpperCase();
