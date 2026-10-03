@@ -59,7 +59,6 @@ async function getFingerprint() {
   return CryptoJS.MD5(fp).toString();
 }
 
-// ─── FP SIGNATURE HELPER ───
 async function getSignedFingerprint() {
   if (!fingerprint) fingerprint = await getFingerprint();
   if (fpSignature) return { fp: fingerprint, sig: fpSignature };
@@ -144,9 +143,9 @@ function setButtonLoading(loading) {
 }
 
 function tampilkanHalamanMaintenance(dataMaintenance) {
-  var judul = sanitize((dataMaintenance && (dataMaintenance.title || dataMaintenance.judul)) ? (dataMaintenance.title || dataMaintenance.judul) : 'SEDANG PERBAIKAN SISTEM');
-  var pesan = sanitize((dataMaintenance && (dataMaintenance.message || dataMaintenance.pesan)) ? (dataMaintenance.message || dataMaintenance.pesan) : 'Website sedang dalam perbaikan oleh admin. Silakan kembali beberapa saat lagi.');
-  var sampai = (dataMaintenance && (dataMaintenance.until || dataMaintenance.sampai)) ? (dataMaintenance.until || dataMaintenance.sampai) : null;
+  var judul = sanitize(dataMaintenance?.title || 'SEDANG PERBAIKAN SISTEM');
+  var pesan = sanitize(dataMaintenance?.message || 'Website sedang dalam perbaikan.');
+  var sampai = dataMaintenance?.until || null;
   var teksEstimasi = sanitize(sampai ? 'Estimasi selesai: ' + new Date(sampai).toLocaleString('id-ID') : 'Mohon maaf atas ketidaknyamanan ini.');
 
   document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;padding:20px;font-family:\'Segoe UI\',sans-serif;">' +
@@ -288,7 +287,9 @@ async function resetPassword() {
       }
 
       var maskedEmail = result.maskedEmail || '';
-      var msg = maskedEmail ? 'Link reset telah dikirim ke ' + maskedEmail + '. Link expired dalam 15 menit.' : 'Jika username terdaftar, link reset akan dikirim ke email Anda.';
+      var msg = maskedEmail
+        ? 'Link reset telah dikirim ke ' + maskedEmail + '. Link expired dalam 15 menit.'
+        : 'Jika username terdaftar, link reset akan dikirim ke email Anda.';
 
       showSuccess(msg);
 
@@ -322,18 +323,6 @@ async function resetPassword() {
             break;
           case 'invalid_captcha':
             errorMsg = 'reCAPTCHA tidak valid! Silakan coba lagi.';
-            break;
-          case 'user_not_found':
-            errorMsg = 'Username tidak terdaftar! Periksa kembali username Anda.';
-            break;
-          case 'email_not_found':
-            errorMsg = 'Akun ini tidak memiliki email terdaftar! Hubungi admin.';
-            break;
-          case 'account_banned':
-            errorMsg = 'Akun Anda dibanned! Hubungi admin.';
-            break;
-          case 'account_suspended':
-            errorMsg = 'Akun Anda ditangguhkan! Hubungi admin.';
             break;
           case 'email_error':
             errorMsg = 'Gagal mengirim email! Coba lagi nanti.';
