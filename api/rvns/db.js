@@ -1,4 +1,3 @@
-// rvns/db.js
 import admin from 'firebase-admin';
 
 let dbInstance = null;
@@ -32,7 +31,8 @@ export const db = dbInstance || {
     set: async () => { throw new Error('DB not initialized'); },
     push: () => ({ key: 'temp_' + Date.now() }),
     update: async () => { throw new Error('DB not initialized'); },
-    remove: async () => { throw new Error('DB not initialized'); }
+    remove: async () => { throw new Error('DB not initialized'); },
+    transaction: async () => ({ committed: false })
   })
 };
 
