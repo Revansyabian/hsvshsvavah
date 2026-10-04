@@ -1,6 +1,11 @@
 // rvns/middleware.js
 import { CONFIG } from './config.js';
-import { verifySession, verifyCSRF, generateCSRFToken } from './session.js';
+import {
+  verifyAdminSession,
+  verifyUserSession,
+  verifyCSRF,
+  generateCSRFToken
+} from './session.js';
 import { decryptAny } from './helper.js';
 import { db } from './db.js';
 
@@ -91,45 +96,41 @@ async function findUserByIdSafe(id) {
 }
 
 export async function requireAuth(req, res, opts = {}) {
-  const session = verifySession(req);
+  const session = verifyUserSession(req);
   if (!session) {
     res.status(401).json({ success: false, message: 'Sesi tidak valid atau sudah berakhir' });
     return null;
   }
   if (opts.csrf !== false && ['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method)) {
-    if (!verifyCSRF(req, session)) {
+    if (!verifyCSRF(req, session, 'user')) {
       res.status(403).json({ success: false, error: 'csrf_invalid', message: 'CSRF token tidak valid' });
       return null;
     }
   }
-
-  const role = String(session.role || '').toLowerCase();
-
-  // ─── FIX: admin role TIDAK BOLEH akses endpoint user ───
-  if (role === 'admin' || role === 'superadmin') {
-    res.status(403).json({
-      success: false,
-      error: 'admin_not_allowed',
-      message: 'Akun admin tidak bisa mengakses halaman user. Login di /admin.'
-    });
-    return null;
-  }
-
   const user = await findUserByIdSafe(session.uid);
   if (!user) {
     res.status(401).json({ success: false, message: 'User tidak ditemukan' });
     return null;
   }
-  return { session, user, csrfToken: generateCSRFToken(session), isAdmin: false };
+  return { session, user, csrfToken: generateCSRFToken(session, 'user'), isAdmin: false };
 }
 
 export async function requireAdmin(req, res, opts = {}) {
-  const auth = await requireAuth(req, res, opts);
-  if (!auth) return null;
-  const role = String(auth.session.role || '').toLowerCase();
-  if (role !== 'admin' && role !== 'superadmin') {
-    res.status(403).json({ success: false, message: 'Akses admin diperlukan' });
+  const session = verifyAdminSession(req);
+  if (!session) {
+    res.status(401).json({ success: false, message: 'Sesi admin tidak valid atau sudah berakhir' });
     return null;
   }
-  return auth;
+  if (opts.csrf !== false && ['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method)) {
+    if (!verifyCSRF(req, session, 'admin')) {
+      res.status(403).json({ success: false, error: 'csrf_invalid', message: 'CSRF token tidak valid' });
+      return null;
+    }
+  }
+  const adminUser = await findAdminById(session.uid);
+  if (!adminUser) {
+    res.status(401).json({ success: false, message: 'Admin tidak ditemukan' });
+    return null;
+  }
+  return { session, user: adminUser, csrfToken: generateCSRFToken(session, 'admin'), isAdmin: true };
 }
