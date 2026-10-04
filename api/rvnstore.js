@@ -1,6 +1,4 @@
-// rvnstore.js
-const TARGET = process.env.PLAYFAB_API_URL;
-if (!TARGET) throw new Error('PLAYFAB_API_URL is not configured');
+const TARGET = process.env.PLAYFAB_API_URL || '';
 
 const ALLOWED_ENDPOINTS = new Set([
   '/Client/LoginWithAndroidDeviceID',
@@ -36,6 +34,11 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!sameOrigin(req)) return res.status(403).json({ error: 'Origin tidak diizinkan' });
+
+  if (!TARGET) {
+    console.error('[rvnstore] PLAYFAB_API_URL tidak di-set');
+    return res.status(500).json({ error: 'Server misconfigured' });
+  }
 
   const origin = req.headers.origin;
   const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
