@@ -11,8 +11,8 @@ import {
   checkResetLimit, recordReset
 } from './rvns/helper.js';
 import {
-  createSessionToken, setSessionCookie, clearSessionCookie,
-  generateCSRFToken, verifySession
+  createSessionToken, setUserSessionCookie, clearUserSessionCookie,
+  generateCSRFToken, verifyUserSession
 } from './rvns/session.js';
 import {
   setSecurityHeaders, setCorsHeaders, enforceOrigin, methodGuard, bodyGuard
@@ -137,8 +137,6 @@ async function handleLogin(req, res, ip, fp) {
 
   const found = await findUserByUsername(username);
 
-  // ─── FIX: kalau user tidak ada ATAU role-nya admin, anggap "username atau password salah"
-  //          (jangan bocorkan info kalau dia admin)
   if (!found) {
     await logActivity(username, 'login_failed', 'User tidak ditemukan', ip, fp).catch(() => {});
     return res.status(200).json({ success: false, message: 'Username atau password salah' });
@@ -146,7 +144,6 @@ async function handleLogin(req, res, ip, fp) {
 
   if (String(found.row.role || '').toLowerCase() === 'admin') {
     await logActivity(username, 'login_admin_via_user_page', 'Admin coba login di halaman user', ip, fp).catch(() => {});
-    // samarkan sebagai "username atau password salah" biar tidak bisa enumerasi role
     return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
 
@@ -180,19 +177,13 @@ async function handleLogin(req, res, ip, fp) {
   const expiry = found.data.expiry_date || '';
   if (!expiry) {
     await logActivity(username, 'login_no_expiry', 'Masa aktif tidak diset', ip, fp).catch(() => {});
-    return res.status(200).json({
-      success: false,
-      message: 'Username atau password salah'
-    });
+    return res.status(200).json({ success: false, message: 'Username atau password salah' });
   }
   if (!String(expiry).includes('9999')) {
     const expiryDate = new Date(expiry);
     if (isNaN(expiryDate.getTime())) {
       await logActivity(username, 'login_bad_expiry', 'Format masa aktif tidak valid', ip, fp).catch(() => {});
-      return res.status(200).json({
-        success: false,
-        message: 'Username atau password salah'
-      });
+      return res.status(200).json({ success: false, message: 'Username atau password salah' });
     }
     expiryDate.setHours(23, 59, 59, 999);
     if (Date.now() > expiryDate.getTime()) {
@@ -260,9 +251,9 @@ async function handleLogin(req, res, ip, fp) {
   });
 
   const session = verifySessionFromToken(sessionToken);
-  const csrfToken = generateCSRFToken(session);
+  const csrfToken = generateCSRFToken(session, 'user');
 
-  setSessionCookie(res, sessionToken, csrfToken, { role: found.row.role });
+  setUserSessionCookie(res, sessionToken, csrfToken);
 
   await logActivity(username, 'login_success', 'Login berhasil', ip, fp).catch(() => {});
 
@@ -343,9 +334,9 @@ async function handleRegister(req, res, ip, fp) {
 }
 
 async function handleLogout(req, res, ip, fp) {
-  const session = verifySession(req);
+  const session = verifyUserSession(req);
   if (session) await logActivity(session.username, 'logout', 'Logout', ip, fp).catch(() => {});
-  clearSessionCookie(res);
+  clearUserSessionCookie(res);
   return res.status(200).json({ success: true });
 }
 
@@ -375,7 +366,6 @@ async function handleRequestReset(req, res, ip, fp) {
 
   const found = await findUserByUsername(username);
 
-  // Samarkan: kalau user tidak ada ATAU role admin ATAU tidak punya email, kasih response generic
   const isUserReal = found
     && String(found.row.role || '').toLowerCase() !== 'admin'
     && found.data.email;
@@ -401,7 +391,7 @@ async function handleRequestReset(req, res, ip, fp) {
 
   await recordReset(found.id, ip, fp);
 
-  const resetLink = `${CONFIG.BASE_URL}/pages/confirm-password?token=${token}`;
+  const resetLink = `${CONFIG.BASE_URL}/confirm-password/?token=${token}`;
 
   if (CONFIG.RESEND_API_KEY) {
     try {
