@@ -2,8 +2,10 @@
 import crypto from 'node:crypto';
 import { CONFIG } from './config.js';
 
-const COOKIE_SESSION = 'rvs_session';
-const COOKIE_CSRF = 'csrf_token';
+const COOKIE_SESSION_ADMIN = 'rvs_admin';
+const COOKIE_SESSION_USER = 'rvs_user';
+const COOKIE_CSRF_ADMIN = 'csrf_admin';
+const COOKIE_CSRF_USER = 'csrf_user';
 const SESSION_KEY = crypto.createHash('sha256').update(CONFIG.SESSION_SECRET || 'fallback').digest();
 
 function parseCookies(req) {
@@ -22,16 +24,21 @@ function parseCookies(req) {
   return out;
 }
 
-export function createSessionToken(user) {
-  const isAdmin = ['admin', 'superadmin'].includes(String(user.role || '').toLowerCase());
-  const maxAge = isAdmin ? CONFIG.SESSION_ADMIN_MAX_AGE : CONFIG.SESSION_USER_MAX_AGE;
+function isAdminRole(role) {
+  return ['admin', 'superadmin'].includes(String(role || '').toLowerCase());
+}
 
+export function createSessionToken(user) {
+  const admin = isAdminRole(user.role);
+  const maxAge = admin ? CONFIG.SESSION_ADMIN_MAX_AGE : CONFIG.SESSION_USER_MAX_AGE;
+
+  const iat = Date.now();
   const payload = JSON.stringify({
     uid: user.id,
     username: user.username,
     role: user.role || 'User',
-    iat: Date.now(),
-    exp: Date.now() + maxAge * 1000
+    iat,
+    exp: iat + maxAge * 1000
   });
 
   const iv = crypto.randomBytes(12);
@@ -44,13 +51,11 @@ export function createSessionToken(user) {
   return `${token}.${sig}`;
 }
 
-export function getSessionMaxAge(user) {
-  const isAdmin = ['admin', 'superadmin'].includes(String(user.role || '').toLowerCase());
-  return isAdmin ? CONFIG.SESSION_ADMIN_MAX_AGE : CONFIG.SESSION_USER_MAX_AGE;
-}
-
 export function verifySession(req) {
-  const t = parseCookies(req)[COOKIE_SESSION];
+  const cookies = parseCookies(req);
+  const tAdmin = cookies[COOKIE_SESSION_ADMIN];
+  const tUser = cookies[COOKIE_SESSION_USER];
+  const t = tAdmin || tUser;
   if (!t) return null;
 
   const parts = t.split('.');
@@ -73,22 +78,44 @@ export function verifySession(req) {
     decipher.setAuthTag(tag);
     const pt = Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
     const d = JSON.parse(pt);
-    return d.exp > Date.now() ? d : null;
+    if (d.exp <= Date.now()) return null;
+    if (tAdmin) d._from = 'admin_cookie';
+    else d._from = 'user_cookie';
+    return d;
   } catch {
     return null;
   }
 }
 
-export function generateCSRFToken(session) {
+export function verifyAdminSession(req) {
+  const session = verifySession(req);
+  if (!session) return null;
+  if (session._from !== 'admin_cookie') return null;
+  if (!isAdminRole(session.role)) return null;
+  return session;
+}
+
+export function verifyUserSession(req) {
+  const session = verifySession(req);
+  if (!session) return null;
+  if (session._from !== 'user_cookie') return null;
+  if (isAdminRole(session.role)) return null;
+  return session;
+}
+
+export function generateCSRFToken(session, kind) {
+  const scope = kind || (isAdminRole(session.role) ? 'admin' : 'user');
   return crypto.createHmac('sha256', CONFIG.SESSION_SECRET || 'fallback')
-    .update(`csrf:${session.uid}:${session.iat || session.exp}`)
+    .update(`csrf:${scope}:${session.uid}:${session.exp}`)
     .digest('base64url');
 }
 
-export function verifyCSRF(req, session) {
-  const token = req.headers['x-csrf-token'];
+export function verifyCSRF(req, session, kind) {
+  const scope = kind || (isAdminRole(session.role) ? 'admin' : 'user');
+  const headerName = scope === 'admin' ? 'x-csrf-token' : 'x-csrf-token';
+  const token = req.headers[headerName];
   if (!token) return false;
-  const expected = generateCSRFToken(session);
+  const expected = generateCSRFToken(session, scope);
   const a = Buffer.from(token);
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
@@ -105,21 +132,49 @@ function appendSetCookie(res, cookieStr) {
   }
 }
 
-export function setSessionCookie(res, sessionToken, csrfToken, user) {
-  const maxAge = user ? getSessionMaxAge(user) : CONFIG.SESSION_ADMIN_MAX_AGE;
+export function setAdminSessionCookie(res, sessionToken, csrfToken) {
+  const maxAge = CONFIG.SESSION_ADMIN_MAX_AGE;
   const isProd = process.env.NODE_ENV === 'production' ||
                  process.env.VERCEL === '1' ||
                  !!process.env.VERCEL_ENV;
-
   const secureFlag = isProd ? '; Secure' : '';
   const baseAttrs = `Path=/; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
 
-  appendSetCookie(res, `${COOKIE_SESSION}=${encodeURIComponent(sessionToken)}; HttpOnly; ${baseAttrs}`);
-  appendSetCookie(res, `${COOKIE_CSRF}=${encodeURIComponent(csrfToken)}; ${baseAttrs}`);
+  appendSetCookie(res, `${COOKIE_SESSION_ADMIN}=${encodeURIComponent(sessionToken)}; HttpOnly; ${baseAttrs}`);
+  appendSetCookie(res, `${COOKIE_CSRF_ADMIN}=${encodeURIComponent(csrfToken)}; ${baseAttrs}`);
 }
 
-export function clearSessionCookie(res) {
-  const past = 'Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  appendSetCookie(res, `${COOKIE_SESSION}=; HttpOnly; ${past}`);
-  appendSetCookie(res, `${COOKIE_CSRF}=; ${past}`);
+export function setUserSessionCookie(res, sessionToken, csrfToken) {
+  const maxAge = CONFIG.SESSION_USER_MAX_AGE;
+  const isProd = process.env.NODE_ENV === 'production' ||
+                 process.env.VERCEL === '1' ||
+                 !!process.env.VERCEL_ENV;
+  const secureFlag = isProd ? '; Secure' : '';
+  const baseAttrs = `Path=/; SameSite=Lax; Max-Age=${maxAge}${secureFlag}`;
+
+  appendSetCookie(res, `${COOKIE_SESSION_USER}=${encodeURIComponent(sessionToken)}; HttpOnly; ${baseAttrs}`);
+  appendSetCookie(res, `${COOKIE_CSRF_USER}=${encodeURIComponent(csrfToken)}; ${baseAttrs}`);
 }
+
+export function clearAdminSessionCookie(res) {
+  const past = 'Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  appendSetCookie(res, `${COOKIE_SESSION_ADMIN}=; HttpOnly; ${past}`);
+  appendSetCookie(res, `${COOKIE_CSRF_ADMIN}=; ${past}`);
+}
+
+export function clearUserSessionCookie(res) {
+  const past = 'Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  appendSetCookie(res, `${COOKIE_SESSION_USER}=; HttpOnly; ${past}`);
+  appendSetCookie(res, `${COOKIE_CSRF_USER}=; ${past}`);
+}
+
+export function getSessionMaxAge(user) {
+  return isAdminRole(user.role) ? CONFIG.SESSION_ADMIN_MAX_AGE : CONFIG.SESSION_USER_MAX_AGE;
+}
+
+export const COOKIE_NAMES = {
+  ADMIN_SESSION: COOKIE_SESSION_ADMIN,
+  USER_SESSION: COOKIE_SESSION_USER,
+  ADMIN_CSRF: COOKIE_CSRF_ADMIN,
+  USER_CSRF: COOKIE_CSRF_USER
+};
