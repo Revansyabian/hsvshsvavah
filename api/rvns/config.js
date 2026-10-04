@@ -18,7 +18,7 @@ export const CONFIG = {
   RECAPTCHA_V2_SITE_KEY: '6LeffrotAAAAAO7SRbl-wJQ8YXzOGNG-t-DW5EGT',
   RECAPTCHA_V3_SITE_KEY: '6LcVBn4tAAAAAINTTIleUbUZr1ZykvyB6WA-oOfT',
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',
-  EMAIL_FROM: process.env.EMAIL_FROM || 'Web Top Up <noreply@example.com>',
+  EMAIL_FROM: process.env.EMAIL_FROM || 'Web Top Up <noreply@webtopupbussid.web.id>',
   BASE_URL: process.env.BASE_URL || 'https://hsvshsvavah-fawn.vercel.app',
   ALLOWED_ORIGINS: (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean),
   SALT_ROUNDS: 12,
