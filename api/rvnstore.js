@@ -1,4 +1,4 @@
-// api/rvnstore.js
+// rvnstore.js
 const TARGET = process.env.PLAYFAB_API_URL;
 if (!TARGET) throw new Error('PLAYFAB_API_URL is not configured');
 
